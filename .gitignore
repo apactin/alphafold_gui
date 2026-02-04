@@ -1,0 +1,52 @@
+# ======== PyInstaller artifacts ========
+build/
+dist/
+*.spec
+
+# ======== Python artifacts ========
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.env
+.venv
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+*.whl
+
+# ======== Virtual environments ========
+venv/
+env/
+.af3/
+.af3_env/
+.conda/
+.conda_env/
+
+# ======== OS junk ========
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ======== Local user config ========
+.af3_pipeline/
+config.yaml
+*.local
+
+# ======== Logs & temp files ========
+*.log
+*.tmp
+*.bak
+*.swp
+*.old
+
+# ======== Editor / IDE ========
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ======== Optional but recommended for your project ========
+cache/
+.cache/
+*_cache/

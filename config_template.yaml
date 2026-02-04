@@ -1,0 +1,106 @@
+# config_template.yaml
+# ===================
+# This file is a TEMPLATE.
+# On first run, the GUI should copy this to a real config.yaml (or ~/.af3_pipeline/config.yaml)
+# and then auto-detect + fill in the values below.
+
+# -------------------------
+# Platform / environment
+# -------------------------
+# platform: wsl | linux | windows
+platform: wsl
+
+# WSL distro name (only used when platform: wsl)
+# Examples: Ubuntu-22.04, Ubuntu-24.04
+wsl_distro: ""
+
+# Path to the GUI repo on Windows (used for portability, cache, and relative path resolution)
+# Example: C:\Users\<you>\Documents\GitHub\alphafold_gui
+gui_dir: ""
+
+# Cache subdirectory relative to gui_dir (Windows path separators are OK)
+# Example: cache\af3_gui_cache
+gui_cache_subdir: ~/.af3_pipeline/af3_gui_cache
+
+cache_root: ~/.af3_pipeline/cache
+
+# Linux home root inside WSL/Linux
+# Example: /home/<you>
+linux_home_root: ""
+
+# AlphaFold3 repo directory inside WSL/Linux
+# Example: /home/<you>/Repositories/alphafold
+af3_dir: ""
+
+# Docker binary name/path (Windows or WSL/Linux depending on how you run)
+docker_bin: docker
+
+# Docker image name/tag for AlphaFold3
+alphafold_docker_image: alphafold3
+
+# -------------------------
+# Docker environment variables for AlphaFold3 container
+# -------------------------
+# These are safe defaults for many setups; your wizard can keep them unless user changes.
+alphafold_docker_env:
+  XLA_PYTHON_CLIENT_PREALLOCATE: "false"
+  XLA_CLIENT_MEM_FRACTION: ".50"
+  XLA_PYTHON_CLIENT_ALLOCATOR: platform
+  TF_FORCE_UNIFIED_MEMORY: "1"
+  TF_FORCE_GPU_ALLOW_GROWTH: "true"
+
+# -------------------------
+# MSA / MMseqs settings
+# -------------------------
+msa:
+  # Threads for mmseqs2
+  threads: 20
+
+  # MMseqs sensitivity (higher = more sensitive, slower)
+  sensitivity: 5.7
+
+  # Max sequences returned (controls MSA size)
+  max_seqs: 25
+
+  # Path to mmseqs db root directory (NOT a file)
+  # Example: /home/<you>/Repositories/alphafold/mmseqs_db
+  db: ""
+
+# -------------------------
+# Ligand conformer generation settings
+# -------------------------
+ligand:
+  # Number of conformers to generate
+  n_confs: 200
+
+  # Random seed (0 means "random" in many workflows; keep as-is if you like)
+  seed: 0
+
+  # Prune conformers within this RMS (Angstrom)
+  prune_rms: 0.25
+
+  # If true, keep formal charge / avoid neutralization
+  keep_charge: true
+
+  # If true, reject SMILES lacking assigned stereo for stereocenters
+  require_assigned_stereo: true
+
+  # Output basename for ligand files (PDB/CIF/PNG)
+  basename: LIGAND
+
+  # Default 3-letter ligand name if none is provided
+  name_default: LIG
+
+  # Size of 2D depiction PNG
+  png_size:
+    - 1500
+    - 1200
+
+  # RDKit threads (0 = RDKit chooses / uses all available)
+  rdkit_threads: 0
+
+# -------------------------
+# Rosetta relax binary (WSL/Linux path)
+# -------------------------
+# Example: /home/<you>/rosetta/rosetta_bin_linux_2021.16.61629_bundle
+rosetta_relax_bin: ""

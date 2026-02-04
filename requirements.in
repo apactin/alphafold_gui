@@ -1,0 +1,18 @@
+# ===== Core app =====
+pyqt6
+pyyaml
+pandas
+numpy
+requests
+
+# ===== Chemistry =====
+rdkit
+
+# ===== AF3 / structure tools =====
+gemmi
+
+# ===== Optional utilities =====
+tqdm
+
+# ===== Packaging (optional) =====
+pyinstaller
