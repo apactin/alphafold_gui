@@ -59,6 +59,24 @@ AF3_DOCKER_ENV = cfg.get("alphafold_docker_env", {
     "TF_FORCE_GPU_ALLOW_GROWTH": "true",
 })
 
+def _user_jobs_root() -> Path:
+    # Prefer explicit config; otherwise default to ~/.af3_pipeline/jobs
+    root = cfg.get("jobs_root", None)
+    if root:
+        return Path(root).expanduser().resolve()
+    return (Path.home() / ".af3_pipeline" / "jobs").resolve()
+
+def copy_af3_outputs_to_jobs_root(*, job_dir: Path, job_name: str) -> Path:
+    jobs_root = _user_jobs_root()
+    dest_dir = jobs_root / job_name
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    for src in job_dir.iterdir():
+        if src.is_file():
+            shutil.copy2(src, dest_dir / src.name)
+
+    return dest_dir
+
 # ==============================
 # ✅ WSL UNC Path Utility (Windows ↔ WSL)
 # ==============================
@@ -286,6 +304,22 @@ def run_af3(json_path=None, job_name="GUI_job", num_recycles=1,
 
         except Exception as e:
             print(f"⚠️ Auto-analysis failed: {e}")
+    else:
+            try:
+                latest = _get_most_recent_output_folder(job_name)
+                if not latest:
+                    print(f"⚠️ No timestamped output found for {job_name}; nothing to copy.")
+                    return
+
+                # Copy from the real AF3 output folder (job_name_YYYYMMDD_HHMMSS)
+                job_dir = latest.parent if latest.is_file() else latest
+
+                # Use the timestamped folder name so bundles match AF3 outputs
+                dest_dir = copy_af3_outputs_to_jobs_root(job_dir=job_dir, job_name=job_dir.name)
+                print(f"📦 Copied AF3 outputs → {dest_dir}")
+            except Exception as e:
+                print(f"⚠️ Copying AF3 outputs failed: {e}")
+
 
 # ==============================
 # 🚀 CLI entry point
