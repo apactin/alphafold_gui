@@ -1,68 +1,94 @@
-# AlphaFold GUI
+AlphaFold GUI
 
-A Windows graphical interface for running **AlphaFold 3 in WSL/Docker**.
+A Windows graphical interface for running AlphaFold 3 in WSL/Docker.
 
-This application provides a point-and-click front end for building AlphaFold input files and launching AlphaFold jobs that run inside WSL. The GUI itself runs on Windows; AlphaFold continues to run inside your existing WSL + Docker installation.
+This application provides a point-and-click front end for building AlphaFold input files and launching AlphaFold jobs that run inside WSL.
 
----
+The GUI runs natively on Windows, while all heavy computation (AlphaFold, MMseqs2, Docker, and GPUs) continues to run inside your existing WSL installation. The GUI simply orchestrates that environment from Windows.
 
-## Requirements
+Requirements (must already be working)
 
-Before using this application you must already have:
+Before using this application, you must already have a functioning AlphaFold 3 environment in WSL:
 
-- **WSL2** installed (Ubuntu recommended)
-- **Docker running inside WSL**
-- A working **AlphaFold 3 installation inside WSL**, including:
-  - AlphaFold code directory  
-  - Model weights  
-  - MMseqs2 databases  
+WSL2 installed (Ubuntu 22.04 recommended)
 
-If you can already run AlphaFold from the WSL command line, you are ready to use this GUI.
+Docker running inside WSL with GPU access (docker --gpus all works)
 
----
+A working AlphaFold 3 installation inside WSL, including:
 
-## Using the pre-built Windows app (recommended)
+AlphaFold 3 code directory
 
-1. Download `AlphaFoldGUI.exe` from the **Releases** page  
-2. Place it anywhere (e.g., Desktop)  
-3. Double-click to run  
-4. On first launch, configure:
-   - Your WSL distro (e.g., `Ubuntu-22.04`)  
-   - AlphaFold installation directory  
-   - Weights directory  
-   - MMseqs database path  
+Model weights (af3.bin)
 
-After configuration, you can create inputs and launch AlphaFold jobs directly from Windows.
+MMseqs2 databases (e.g., uniref30_2302_db)
 
-> You do **not** need Python installed to run the `.exe`.  
-> The GUI is fully bundled inside the executable.
+Rule of thumb:
+If you can already run AlphaFold successfully from the WSL command line, you are ready to use this GUI.
 
----
+Using the pre-built Windows app (recommended)
 
-## What the `.exe` does *not* include
+Download AlphaFoldGUI.exe from the Releases page
 
-The executable **does not contain**:
+Place it anywhere (e.g., Desktop)
 
-- AlphaFold  
-- Model weights  
-- Databases  
-- Docker  
-- WSL  
+Double-click to run
+
+On first launch, you will be prompted to configure:
+
+Your WSL distro (e.g., Ubuntu-22.04)
+
+AlphaFold installation directory in WSL
+
+Weights directory
+
+MMseqs database path
+
+After configuration, you can:
+
+Create protein / nucleic acid sequences
+
+Prepare ligands
+
+Build AlphaFold inputs
+
+Launch jobs
+
+Monitor logs
+—all from Windows.
+
+You do not need Python installed on Windows
+
+The GUI is fully bundled inside the executable.
+
+What the .exe does NOT include
+
+The executable does not ship with:
+
+AlphaFold
+
+Model weights
+
+Databases
+
+Docker
+
+WSL
 
 Those must already exist in your WSL environment.
 
-The GUI is simply a Windows front end that controls your existing AlphaFold installation.
+The GUI is strictly a Windows front end that controls your existing AlphaFold setup.
 
----
+Development (run from source)
 
-## Development (run from source)
+If you want to modify or extend the GUI:
 
-If you want to modify the GUI:
-
-```bash
 conda activate af3
 python apps/gui/main.py
+
+This runs the same interface directly from Python.
+
 Build Windows EXE
+
 From the repository root:
 
 python -m PyInstaller --noconfirm --clean --onefile --windowed --name AlphaFoldGUI `
@@ -72,6 +98,36 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name AlphaFoldG
   --add-data "apps\gui\main_window.ui;." `
   --add-data "apps\gui\config_template.yaml;." `
   apps\gui\main.py
+
 The final application will be in:
 
 dist/AlphaFoldGUI.exe
+Troubleshooting
+“Docker permission denied”
+
+Inside WSL:
+
+sudo usermod -aG docker $USER
+newgrp docker
+
+or reopen your Ubuntu terminal.
+
+“GPU not visible in Docker”
+
+From WSL, check:
+
+docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+
+If this fails, restart WSL:
+
+wsl --shutdown
+
+Then try again.
+
+Installation guide for AlphaFold + WSL
+
+If you still need to set up AlphaFold itself, see:
+
+install/README_SETUP.md
+
+This contains step-by-step instructions for a fresh Ubuntu + CUDA + Docker + AlphaFold install.

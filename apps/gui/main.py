@@ -10,8 +10,9 @@ no QWidget can be constructed too early.
 """
 
 import sys
+import qdarkstyle
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QFont, QPalette, QColor
+from PyQt6.QtGui import QFont, QPalette, QColor, QIcon
 from qt_material import apply_stylesheet
 from pathlib import Path
 import yaml
@@ -33,7 +34,17 @@ def _posixify(s: str) -> str:
     return s
 
 def resource_path(rel: str) -> Path:
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    """
+    Return absolute path to a resource bundled by PyInstaller,
+    or the correct path in dev mode.
+    Works for both --onefile and normal execution.
+    """
+    if getattr(sys, "frozen", False):        # running as packaged EXE
+        base = Path(sys._MEIPASS)
+    else:                                    # running from source
+        # adjust this so it points to apps/gui/assets from main.py
+        base = Path(__file__).resolve().parent
+
     return base / rel
 
 def bootstrap_user_config():
@@ -84,13 +95,30 @@ bootstrap_user_config()
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion") 
+    #qss_path = Path(__file__).parent / "assets" / "Ubuntu.qss"
+    #with open(qss_path, "r", encoding="utf-8") as f:
+        #app.setStyleSheet(f.read())
+
+    base = qdarkstyle.load_stylesheet(qt_api="pyside6", palette=qdarkstyle.LightPalette)
+
+    app.setStyleSheet(base + """
+    QMainWindow {
+        background-color: #3B59D9;
+    }
+    QLabel {
+        font-weight: 600;
+    }
+    """)
+
+    ico = QIcon(str(resource_path("assets/custom_icon_2.ico")))
+    app.setWindowIcon(ico)
 
     app.setFont(QFont("Arial", 10))
-    apply_stylesheet(app, theme="dark_white.xml")
 
     from main_window import MainWindow
 
     window = MainWindow()
+    window.setWindowIcon(ico)
     window.show()
     sys.exit(app.exec())
 

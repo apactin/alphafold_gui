@@ -38,7 +38,7 @@ from zoneinfo import ZoneInfo
 
 from PyQt6 import uic
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QRect, QRectF, QPoint, QTimer
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QFontMetrics, QWheelEvent, QFont
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QFontMetrics, QWheelEvent, QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -263,13 +263,17 @@ def select_multiple(parent, title, items) -> str:
 
 def resource_path(rel: str) -> Path:
     """
-    Return absolute path to a resource bundled by PyInstaller, or in dev mode.
-    Works for both --onedir and --onefile builds.
+    Return absolute path to a resource bundled by PyInstaller,
+    or the correct path in dev mode.
+    Works for both --onefile and normal execution.
     """
-    base = getattr(sys, "_MEIPASS", None)
-    if base:
-        return Path(base) / rel
-    return Path(__file__).resolve().parent / rel
+    if getattr(sys, "frozen", False):        # running as packaged EXE
+        base = Path(sys._MEIPASS)
+    else:                                    # running from source
+        # adjust this so it points to apps/gui/assets from main.py
+        base = Path(__file__).resolve().parent
+
+    return base / rel
 
 # ==========================
 # 👤 Profiles (module-level)
@@ -3503,6 +3507,9 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
+    ico = QIcon(resource_path("assets/custom_icon_2.ico"))
+    app.setWindowIcon(ico)
+
     try:
         pass
     except Exception as e:
@@ -3514,5 +3521,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     window = MainWindow()
+    window.setWindowIcon(ico)
     window.show()
     sys.exit(app.exec())
