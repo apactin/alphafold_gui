@@ -5,13 +5,22 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
-
+import os
 from .cache_utils import compute_hash, get_cache_dir, get_cache_file, exists_in_cache
 from .config import cfg
     
 def require(cmd: str, install_hint: str = ""):
+    if cmd.lower() == "wsl":
+        # On Windows, wsl.exe might not resolve via shutil.which() reliably.
+        try:
+            subprocess.run(["wsl", "--status"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except Exception:
+            raise RuntimeError(f"Required binary '{cmd}' not found or not working. {install_hint}".strip())
+
     if shutil.which(cmd) is None:
         raise RuntimeError(f"Required binary '{cmd}' not found. {install_hint}".strip())
+
 
 def _to_wsl_path(win_path: str) -> str:
     p = Path(win_path).resolve()
@@ -26,27 +35,21 @@ def _to_wsl_path(win_path: str) -> str:
 def _normalize_db_path_legacy(db_path) -> str:
     p_str = str(db_path).strip()
 
-    # Convert UNC \\wsl.localhost\<distro>\home\...  -> /home/...
     if p_str.lower().startswith("\\\\wsl.localhost\\"):
         parts = p_str.split("\\")
-        # parts: ["", "", "wsl.localhost", "<distro>", "home", "olive", ...]
         if len(parts) >= 5:
             p_str = "/" + "/".join(parts[4:])
 
-    # Convert backslashes to slashes
     p_str = p_str.replace("\\", "/")
 
-    # Convert Windows drive paths to WSL /mnt/<drive>/...
     if ":" in p_str and not p_str.startswith("/"):
         drive = p_str[0].lower()
         rest = p_str[2:].lstrip("/").replace(":", "")
         p_str = f"/mnt/{drive}/{rest}"
 
-    # Ensure absolute POSIX path
     if not p_str.startswith("/"):
         p_str = "/" + p_str.lstrip("/")
 
-    # Clean accidental doubles
     while "//" in p_str:
         p_str = p_str.replace("//", "/")
 
@@ -83,11 +86,17 @@ def _build_msa_wsl_legacy(
     shash = compute_hash(sequence)
     msa_a3m = get_cache_file("msa", shash, "msa.a3m")
     sdir = get_cache_dir("msa", shash)
-    sdir.mkdir(parents=True, exist_ok=True)
 
     if skip_if_exists and exists_in_cache("msa", shash, "msa.a3m"):
-        print(f"🧬 Using cached MSA for {tag} ({shash})")
-        return msa_a3m
+        try:
+            if msa_a3m.stat().st_size > 0:
+                print(f"🧬 Using cached MSA for {tag} ({shash})")
+                return msa_a3m
+            else:
+                print(f"⚠️ Cached MSA exists but is empty; regenerating ({tag}, {shash})")
+        except Exception:
+            pass
+
 
     query_fasta = sdir / "query.fasta"
     query_fasta.write_text(f">query\n{sequence}\n", encoding="utf-8")
@@ -149,12 +158,17 @@ def build_msa(
     sensitivity = float(cfg.get("msa.sensitivity", 5.7)) if sensitivity is None else float(sensitivity)
     max_seqs = int(cfg.get("msa.max_seqs", 25)) if max_seqs is None else int(max_seqs)
 
+    print("DEBUG cfg.path =", getattr(cfg, "path", None))
+    print("DEBUG env AF3_PIPELINE_CONFIG =", os.environ.get("AF3_PIPELINE_CONFIG"))
+    print("DEBUG msa.db =", cfg.get("msa.db", None))
+    print("DEBUG msa dict =", cfg.get("msa", None))
+
     if db_path is None:
         raw = (cfg.get("msa.db", "") or "").strip()
         if not raw:
             raise RuntimeError(
                 "Missing config value msa.db. Set it to something like "
-                "/home/olive/Repositories/alphafold/mmseqs_db (or the full DB dir)."
+                "/home/<user>/Repositories/alphafold/mmseqs_db (or the full DB dir)."
             )
         base = Path(raw)
 

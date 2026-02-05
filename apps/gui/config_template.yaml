@@ -20,9 +20,9 @@ gui_dir: ""
 
 # Cache subdirectory relative to gui_dir (Windows path separators are OK)
 # Example: cache\af3_gui_cache
-gui_cache_subdir: ~/.af3_pipeline/af3_gui_cache
+gui_cache_subdir: ""
 
-cache_root: ~/.af3_pipeline/cache
+cache_root: ""
 
 # Linux home root inside WSL/Linux
 # Example: /home/<you>

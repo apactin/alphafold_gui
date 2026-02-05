@@ -72,8 +72,15 @@ def copy_af3_outputs_to_jobs_root(*, job_dir: Path, job_name: str) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     for src in job_dir.iterdir():
+        dest = dest_dir / src.name
+
         if src.is_file():
-            shutil.copy2(src, dest_dir / src.name)
+            shutil.copy2(src, dest)
+
+        else:  # copy any folder
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(src, dest)
 
     return dest_dir
 

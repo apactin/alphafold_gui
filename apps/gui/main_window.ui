@@ -7,8 +7,13 @@
     <x>0</x>
     <y>0</y>
     <width>1400</width>
-    <height>1108</height>
+    <height>1130</height>
    </rect>
+  </property>
+  <property name="font">
+   <font>
+    <family>Arial Rounded MT Bold</family>
+   </font>
   </property>
   <property name="windowTitle">
    <string>AlphaFold3 GUI Runner</string>
@@ -48,12 +53,12 @@
         <widget class="QLabel" name="appTitleLabel">
          <property name="font">
           <font>
-           <family>Arial</family>
+           <family>Arial Rounded MT Bold</family>
            <pointsize>20</pointsize>
           </font>
          </property>
          <property name="text">
-          <string>AlphaFold3 GUI</string>
+          <string>Navigation</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -64,7 +69,8 @@
         <widget class="QListWidget" name="navList">
          <property name="font">
           <font>
-           <family>Arial</family>
+           <family>Arial Rounded MT Bold</family>
+           <pointsize>6</pointsize>
           </font>
          </property>
          <property name="currentRow">
@@ -76,7 +82,8 @@
           </property>
           <property name="font">
            <font>
-            <pointsize>30</pointsize>
+            <family>Arial Rounded MT Bold</family>
+            <pointsize>20</pointsize>
            </font>
           </property>
          </item>
@@ -86,7 +93,7 @@
           </property>
           <property name="font">
            <font>
-            <pointsize>30</pointsize>
+            <pointsize>20</pointsize>
            </font>
           </property>
          </item>
@@ -96,7 +103,7 @@
           </property>
           <property name="font">
            <font>
-            <pointsize>30</pointsize>
+            <pointsize>20</pointsize>
            </font>
           </property>
          </item>
@@ -106,7 +113,7 @@
           </property>
           <property name="font">
            <font>
-            <pointsize>30</pointsize>
+            <pointsize>20</pointsize>
            </font>
           </property>
          </item>
@@ -116,7 +123,7 @@
           </property>
           <property name="font">
            <font>
-            <pointsize>30</pointsize>
+            <pointsize>20</pointsize>
            </font>
           </property>
          </item>
@@ -126,7 +133,7 @@
           </property>
           <property name="font">
            <font>
-            <pointsize>30</pointsize>
+            <pointsize>20</pointsize>
            </font>
           </property>
          </item>
@@ -142,7 +149,7 @@
          </property>
          <property name="font">
           <font>
-           <family>Arial</family>
+           <family>Arial Rounded MT Bold</family>
           </font>
          </property>
          <property name="title">
@@ -188,7 +195,7 @@
              <widget class="QPushButton" name="notesButton">
               <property name="font">
                <font>
-                <family>Arial</family>
+                <family>Arial Rounded MT Bold</family>
                </font>
               </property>
               <property name="text">
@@ -215,10 +222,11 @@
       <property name="font">
        <font>
         <family>Arial</family>
+        <pointsize>10</pointsize>
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="pageIntro">
        <layout class="QVBoxLayout" name="introPageLayout">
@@ -226,12 +234,12 @@
          <widget class="QLabel" name="introHeader">
           <property name="font">
            <font>
-            <family>Arial</family>
-            <pointsize>18</pointsize>
+            <family>Arial Rounded MT Bold</family>
+            <pointsize>30</pointsize>
            </font>
           </property>
           <property name="text">
-           <string>Welcome to Alphafold3 GUI</string>
+           <string>AlphaFold3 Docking Pipeline</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -239,16 +247,17 @@
          </widget>
         </item>
         <item>
-         <widget class="QTextBrowser" name="textBrowser">
+         <widget class="QTextBrowser" name="textBrowser_2">
           <property name="minimumSize">
            <size>
-            <width>0</width>
-            <height>1000</height>
+            <width>900</width>
+            <height>900</height>
            </size>
           </property>
           <property name="font">
            <font>
             <family>Arial</family>
+            <pointsize>10</pointsize>
            </font>
           </property>
           <property name="html">
@@ -258,71 +267,33 @@ p, li { white-space: pre-wrap; }
 hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Arial'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;This pipeline assumes you have already installed WSL (Ubuntu), as well as MMSeqs2, AlphaFold3, and Rosetta. upon opening this GUI for the first time, a config file will be auto-generated. Check the Config tab to ensure the correct directories, as well as to add the Rosetta directory (optional)&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI'; font-weight:700;&quot;&gt;SEQUENCES&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI'; font-weight:700;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;This tab allows the user to save protein, DNA, and RNA sequences.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI'; font-weight:700;&quot;&gt;LIGANDS&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI'; font-weight:700;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Here, the user can input a SMILES of any ligand (within reason, the more complex the molecule, the harder it will be for AlphaFold to dock) and generate a 3D representation ready for AlphaFold docking. Essentially what's happening behind the scenes is this:&lt;br /&gt;&lt;br /&gt;1. Create an RDKit molecule from the SMILES (importantly conserving stereochemistry)&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;2. Add hydrogens, and embed conformers using RDKit (default is 200 conformers, this number is configurable)&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;3. Run energy minimization using RDKit and pick the lowest energy conformer&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;4. Write the final molecule to a PDB file, and convert this to a CIF file (the format AlphaFold3 wants)&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Once a ligand has been saved, it can be opened in a viewer like PyMOL. This is good to confirm geometry and stereochemistry. In addition, for covalent docking, the ID for the atom which connects to the protein is needed and this can only be determined by viewing the ligand. &lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;*Important note for covalent docking: AlphaFold3 does not do chemistry. In ChemDraw, modify your ligand so it resembles the product after reaction with the protein. As an example, for a sulfonyl fluoride, simply remove the Fluorine atom (it's okay to replace with Hydrogen, because AlphaFold3 ignores them).&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI'; font-weight:700;&quot;&gt;ALPHAFOLD&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI'; font-weight:700;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;This is where the magic happens. There are 5 sections to this page:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;1. Macromolecules&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Navigate through the tabs at the tob to add protein, DNA, or RNA. Sequences will only appear here after being saved in the Sequences page (see above). Select your desired macromolecule from the dropdown. Optionally, you can supply a PDB template (e.g. &amp;quot;8S7D&amp;quot;). The code will search the PDB template for the best match to your selected protein, and then supply the 3D coordinates from the PDB to AlphaFold as a 'template' for its predictions. Additionally, you can select a PTM from the dropdown and supply a target residue.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;2. Run parameters&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Select ligand (optional). Can indicate whether you want to run covalent or not (if yes, supply the necessary information). If there's a mismatch between the residue and the atom selected from the dropdown, the code will throw an error when trying to run RosettaRelax (e.g. make sure if the target residue is a cysteine, make sure that cysteine is selected in the dropdown, and that the residue number you enter actually corresponds to a cysteine).&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Optionally, enter ions or cofactors. If something isn't in the dropdown, look up its Chemical Component Dictionary (CCD) code and supply that in the text field. &lt;br /&gt;&lt;br /&gt;Next is model seeds. In brief, each seed that AlphaFold uses is a different &amp;quot;first guess&amp;quot; at what the structure looks like. For each of these seeds, AlphaFold will generate 5 distinct structure predictions (samples). Some seeds are better than others, therefore it is wise to test multiple seeds. From each seed, you can then pick the highest confidence sample and compare. By default the code runs with 2 predetermined seeds (that were arbitrarily chosen). &lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;3. Queue&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Here you can queue jobs. Pretty self explanatory.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;4. Post-AF3 Analysis&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;This is the integration with Rosetta. In an attempt to refine the AlphaFold3 output, we can use RosettaRelax. Rosetta has a hard time relaxing the covalent structure, therefore we break the covalent bond between the ligand and the protein. Although the presence of this bond was very important for AlphaFold3's prediction of the final complex, we can apply constraints during RosettaRelax so that the ligand remains 'bound' to the protein.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;The user can manually run relax on an output folder by simply entering the folder name. The first checkbox allows automatically running relax immediately after a job has finished. This has to be checked at the time you press run or start the queue for it to take effect. The second checkbox allows relax to be run on the top scoring model of each seed. It uses the AlphaFold3 confidence metrics pLDDT and pulls the highest scoring sample from each seed, and then runs relax on each. This second checkbox can be applied to both auto and manual analysis.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;5. Log&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Output indicating the progress of the current run. In addition, errors that might occur in other tabs (mostly Ligands, if a nonsensical SMILES is entered, for example) might have output in the log here. The notes box is a running text document that is stored in the cache. Useful for keeping track of which ligands bind which proteins/residues etc.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI'; font-weight:700;&quot;&gt;RUNS&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI'; font-weight:700;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;This is just a history of previous runs. Nice if you forgot what paremeters you entered. Also, you can load previous run parameters through the button in the bottom right.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI'; font-weight:700;&quot;&gt;CONFIG&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI'; font-weight:700;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Segoe UI';&quot;&gt;Here you can edit directories as well as MMSeqs2 and ligand generation parameters. Most things do not need to be changed.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI';&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Arial'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;BEFORE USE&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;&lt;br /&gt;Install AlphaFold3, MMSeqs2, and Rosetta. See GitHub repository for more information.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Segoe UI'; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;RUNNING ALPHAFOLD PIPELINE&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Macromolecules&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Save a macromolecule's sequence on the &amp;quot;SEQUENCES&amp;quot; page, and then select it on the &amp;quot;ALPHAFOLD&amp;quot; page. Optionally, supply a template PDB ID (e.g. &amp;quot;8S7G&amp;quot;) that will be used to aid AlphaFold3's prediction.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Ligands&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Custom ligands can be supplied as SMILES on the &amp;quot;LIGANDS&amp;quot; page. Ligand generation can be configured on the &amp;quot;CONFIGS&amp;quot; page. For covalent ligands, the SMILES provided should correspond to the ligand's structure after it has reacted. I.e. for a sulfonyl fluoride warhead, remove the fluorine atom before supplying the SMILES. Confirm geometry and stereochemistry by opening the ligand in a viewer. Note the atom ID for the atom which will be attached to the protein (e.g. &amp;quot;S1&amp;quot;).&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;PTMS/Ions/Cofactors&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;PTMs, ions, and cofactors are all indicated by Chemical Component Dictionary (CCD) codes. The prepopulated lists in the gui are comprehensive, but not complete. If your desired ion or cofactor is not in the list, look up its CCD code and supply it in the text box.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Running/Post-Analysis&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Queue or run jobs manually. Previous jobs can be viewed and re-ran from the &amp;quot;RUNS&amp;quot; page. Optionally, check boxes for post-analysis with Rosetta&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Rosetta Post-Analysis&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt; text-decoration: underline;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Run energy minimization of the AlphaFold3 output. The protein-ligand bond is broken, and the ligand is constrained. This results in refinement of bond geometry and supplies a 'score' which can be used to assess the model. Realistically, the score should only be used to make comparisons between two models of the same complex.  &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
          </widget>
         </item>
@@ -331,6 +302,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
           <property name="font">
            <font>
             <family>Arial</family>
+            <pointsize>10</pointsize>
            </font>
           </property>
           <property name="orientation">
@@ -348,7 +320,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <widget class="QLabel" name="label">
           <property name="font">
            <font>
-            <family>Arial</family>
+            <family>Arial Rounded MT Bold</family>
+            <pointsize>10</pointsize>
            </font>
           </property>
           <property name="text">
@@ -368,6 +341,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </property>
         <item>
          <widget class="QLabel" name="sequencesHeader">
+          <property name="font">
+           <font>
+            <family>Arial Black</family>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
           <property name="text">
            <string>Sequences</string>
           </property>
@@ -375,6 +354,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
         <item>
          <widget class="QGroupBox" name="proteinSeqGroup">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
           <property name="title">
            <string>Protein</string>
           </property>
@@ -419,6 +404,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
         <item>
          <widget class="QGroupBox" name="dnaSeqGroup">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
           <property name="title">
            <string>DNA</string>
           </property>
@@ -463,6 +454,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
         <item>
          <widget class="QGroupBox" name="rnaSeqGroup">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
           <property name="title">
            <string>RNA</string>
           </property>
@@ -527,6 +524,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </property>
         <item>
          <widget class="QLabel" name="ligandsHeader">
+          <property name="font">
+           <font>
+            <family>Arial Black</family>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
           <property name="text">
            <string>Ligands</string>
           </property>
@@ -534,6 +537,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
         <item>
          <widget class="QGroupBox" name="ligandSavedGroup">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
           <property name="title">
            <string>Saved Ligand</string>
           </property>
@@ -682,6 +691,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <number>12</number>
         </property>
         <item>
+         <widget class="QLabel" name="label_3">
+          <property name="font">
+           <font>
+            <family>Arial Black</family>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>AlphaFold Runner</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
          <layout class="QHBoxLayout" name="jobRow">
           <item>
            <widget class="QLabel" name="jobNameLabel">
@@ -704,8 +729,14 @@ li.checked::marker { content: &quot;\2612&quot;; }
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>275</height>
+            <height>300</height>
            </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+            <pointsize>10</pointsize>
+           </font>
           </property>
           <property name="title">
            <string>Macromolecules</string>
@@ -762,7 +793,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                     <x>0</x>
                     <y>0</y>
                     <width>936</width>
-                    <height>197</height>
+                    <height>183</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="proteinsContainerLayout">
@@ -818,8 +849,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>936</width>
-                    <height>197</height>
+                    <width>266</width>
+                    <height>33</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="dnaContainerLayout">
@@ -875,8 +906,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>936</width>
-                    <height>197</height>
+                    <width>264</width>
+                    <height>33</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="rnaContainerLayout">
@@ -928,22 +959,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
                <widget class="QLineEdit" name="covalentChain">
                 <property name="placeholderText">
                  <string>Chain (e.g. A)</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QToolButton" name="toolButton">
-                <property name="toolTip">
-                 <string>Chain naming always starts with the first protein, even if they were not the first items to be added. </string>
-                </property>
-                <property name="text">
-                 <string>❓</string>
-                </property>
-                <property name="icon">
-                 <iconset theme="accessories-text-editor"/>
-                </property>
-                <property name="autoRaise">
-                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -1175,7 +1190,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                <property name="minimumSize">
                 <size>
                  <width>0</width>
-                 <height>100</height>
+                 <height>50</height>
                 </size>
                </property>
               </widget>
@@ -1286,8 +1301,14 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </property>
         <item>
          <widget class="QLabel" name="runsHeader">
+          <property name="font">
+           <font>
+            <family>Arial Black</family>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
           <property name="text">
-           <string>Runs</string>
+           <string>Runs History</string>
           </property>
          </widget>
         </item>
@@ -1366,6 +1387,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </property>
         <item>
          <widget class="QLabel" name="configHeader">
+          <property name="font">
+           <font>
+            <family>Arial Black</family>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
           <property name="text">
            <string>Config</string>
           </property>
@@ -1378,44 +1405,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </property>
           <layout class="QGridLayout" name="platformLayout">
            <item row="0" column="0">
-            <widget class="QLabel" name="cfgPlatformLabel">
-             <property name="text">
-              <string>Platform:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="2">
-            <widget class="QComboBox" name="cfgPlatform">
-             <item>
-              <property name="text">
-               <string>wsl</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>docker</string>
-              </property>
-             </item>
-            </widget>
-           </item>
-           <item row="1" column="0">
             <widget class="QLabel" name="cfgWslDistroLabel">
              <property name="text">
               <string>WSL distro:</string>
              </property>
             </widget>
            </item>
-           <item row="1" column="2">
+           <item row="0" column="2">
             <widget class="QLineEdit" name="cfgWslDistro"/>
            </item>
-           <item row="2" column="0">
+           <item row="1" column="0">
             <widget class="QLabel" name="cfgLinuxHomeRootLabel">
              <property name="text">
               <string>Linux home root:</string>
              </property>
             </widget>
            </item>
-           <item row="2" column="2">
+           <item row="1" column="2">
             <widget class="QLineEdit" name="cfgLinuxHomeRoot"/>
            </item>
           </layout>
@@ -1437,16 +1443,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <item row="0" column="2">
             <widget class="QLineEdit" name="cfgGuiDir"/>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="cfgGuiCacheSubdirLabel">
-             <property name="text">
-              <string>GUI cache subdir:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QLineEdit" name="cfgGuiCacheSubdir"/>
-           </item>
           </layout>
          </widget>
         </item>
@@ -1456,29 +1452,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <string>Directories</string>
           </property>
           <layout class="QGridLayout" name="pathsLayout">
-           <item row="4" column="0">
-            <widget class="QLabel" name="cfgRosettaRelaxBinLabel">
-             <property name="text">
-              <string>Rosetta relax directory:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="2">
-            <widget class="QLineEdit" name="cfgRosettaRelaxBin"/>
-           </item>
-           <item row="4" column="4">
-            <widget class="QToolButton" name="cfgRosettaRelaxBinHelp">
-             <property name="toolTip">
-              <string>Matches config.yaml key: rosetta_relax_bin</string>
-             </property>
-             <property name="text">
-              <string>❓</string>
-             </property>
-             <property name="autoRaise">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
            <item row="5" column="0">
             <widget class="QLabel" name="cfgMMseqsDBLabel">
              <property name="text">
@@ -1486,18 +1459,18 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="5" column="2">
-            <widget class="QLineEdit" name="cfgMMseqsDB"/>
+           <item row="4" column="2">
+            <widget class="QLineEdit" name="cfgRosettaRelaxBin"/>
            </item>
-           <item row="5" column="4">
-            <widget class="QToolButton" name="toolButton_5">
+           <item row="4" column="0">
+            <widget class="QLabel" name="cfgRosettaRelaxBinLabel">
              <property name="text">
-              <string>❓</string>
-             </property>
-             <property name="autoRaise">
-              <bool>true</bool>
+              <string>Rosetta relax directory:</string>
              </property>
             </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QLineEdit" name="cfgMMseqsDB"/>
            </item>
           </layout>
          </widget>

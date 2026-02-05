@@ -214,10 +214,8 @@ def build_input(jobname, proteins, rna, dna, ligand):
         if msa_str is None:
             _emit(f"Building MSA for chain {pid}…")
             msa_str = build_msa(seq, pid)
-            if msa_str:
-                save_msa_cache(seq, msa_str)
-
         msa_str = _ensure_clean_msa(msa_str)
+        save_msa_cache(seq, msa_str)
 
         entry = {
             "protein": {

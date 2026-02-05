@@ -28,17 +28,17 @@ import json
 import random
 import subprocess
 import traceback
-import shutil
 import yaml
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 from PyQt6 import uic
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QRect, QRectF, QPoint, QTimer
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QFontMetrics, QWheelEvent, QFont
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -61,44 +61,60 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QGroupBox,
     QInputDialog,
+    QScrollBar,
+    QToolButton, 
+    QMenu
 )
 
-# === Configuration ===
-from af3_pipeline.config import cfg
+# ==========================
+# 🧠 Lazy backend import (after profile env set)
+# ==========================
+cfg = None
+json_builder = None
+runner = None
+cache_utils = None
+prepare_ligand_from_smiles = None
+_canonical_smiles = None
 
-# === Backend ===
-from af3_pipeline import json_builder, runner, cache_utils
-from af3_pipeline.ligand_utils import prepare_ligand_from_smiles, _canonical_smiles
+def _ensure_backend_loaded():
+    global cfg, json_builder, runner, cache_utils, prepare_ligand_from_smiles, _canonical_smiles
+    if cfg is not None:
+        return
+
+    # ✅ Guard: don't load backend until profile config is chosen
+    if not (os.environ.get("AF3_PIPELINE_CONFIG") or "").strip():
+        raise RuntimeError("Backend loaded before AF3_PIPELINE_CONFIG is set (profile not activated yet).")
+
+    from af3_pipeline.config import cfg as _cfg
+    from af3_pipeline import json_builder as _json_builder, runner as _runner, cache_utils as _cache_utils
+    from af3_pipeline.ligand_utils import prepare_ligand_from_smiles as _pls, _canonical_smiles as _canon
+
+    cfg = _cfg
+    json_builder = _json_builder
+    runner = _runner
+    cache_utils = _cache_utils
+    prepare_ligand_from_smiles = _pls
+    _canonical_smiles = _canon
+
 
 # ==========================
-# 📁 Paths & Cache (config-driven)
+# 📁 Paths & Cache (profile-scoped)
 # ==========================
 def norm_path(x: str | Path) -> Path:
     return Path(x).expanduser().resolve()
 
-
-WSL_DISTRO = cfg.get("wsl_distro", "Ubuntu-22.04")
-
 def _default_user_cfg_dir() -> Path:
     return Path.home() / ".af3_pipeline"
 
-GUI_CACHE_DIR = norm_path(_default_user_cfg_dir() / "gui_cache")
-GUI_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# These are initialized AFTER profile activation
+GUI_CACHE_DIR: Path = norm_path(_default_user_cfg_dir() / "users" / "_UNSET_" / "gui_cache")
+SEQUENCE_CACHE_FILE: Path = GUI_CACHE_DIR / "sequence_cache.json"
+LIGAND_CACHE_FILE: Path   = GUI_CACHE_DIR / "ligand_cache.json"
+QUEUE_FILE: Path          = GUI_CACHE_DIR / "job_queue.json"
+NOTES_FILE: Path          = GUI_CACHE_DIR / "notes.txt"
+RUNS_HISTORY_FILE: Path   = GUI_CACHE_DIR / "runs_history.json"
 
-
-SEQUENCE_CACHE_FILE = GUI_CACHE_DIR / "sequence_cache.json"
-LIGAND_CACHE_FILE   = GUI_CACHE_DIR / "ligand_cache.json"
-QUEUE_FILE          = GUI_CACHE_DIR / "job_queue.json"
-NOTES_FILE          = GUI_CACHE_DIR / "notes.txt"
-RUNS_HISTORY_FILE   = GUI_CACHE_DIR / "runs_history.json"
-cache_root_raw = (cfg.get("cache_root") or "").strip()
-if cache_root_raw:
-    LIGAND_CACHE = norm_path(Path(cache_root_raw) / "ligands")
-else:
-    # fallback if cache_root not set (should be rare)
-    LIGAND_CACHE = norm_path(_default_user_cfg_dir() / "cache" / "ligands")
-
-LIGAND_CACHE.mkdir(parents=True, exist_ok=True)
+LIGAND_CACHE: Path        = norm_path(_default_user_cfg_dir() / "users" / "_UNSET_" / "cache" / "ligands")
 
 # ==========================
 # ⚙️ Constants
@@ -185,26 +201,34 @@ def _read_json(path: Path, default):
 def _write_json(path: Path, data):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
+DEFAULT_TZ = "America/Los_Angeles"
+
+def _get_tz_name() -> str:
+    """
+    cfg is None until a profile is activated (lazy backend import).
+    So we must fall back to a stable default here.
+    """
+    try:
+        if cfg is not None:
+            return str(cfg.get("timezone", DEFAULT_TZ) or DEFAULT_TZ)
+    except Exception:
+        pass
+    return DEFAULT_TZ
 
 def _now_iso() -> str:
-    return datetime.now().isoformat(timespec="seconds")
-
+    return datetime.now(ZoneInfo(_get_tz_name())).isoformat(timespec="seconds")
 
 def _sanitize_jobname(s: str) -> str:
     return (s or "").strip().replace("+", "_")
 
-
 def _msg_info(parent, title, text):
     QMessageBox.information(parent, title, text)
-
 
 def _msg_warn(parent, title, text):
     QMessageBox.warning(parent, title, text)
 
-
 def _msg_err(parent, title, text):
     QMessageBox.critical(parent, title, text)
-
 
 def _msg_yesno(parent, title, text) -> bool:
     res = QMessageBox.question(
@@ -214,7 +238,6 @@ def _msg_yesno(parent, title, text) -> bool:
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
     )
     return res == QMessageBox.StandardButton.Yes
-
 
 def select_multiple(parent, title, items) -> str:
     dlg = QDialog(parent)
@@ -248,6 +271,81 @@ def resource_path(rel: str) -> Path:
         return Path(base) / rel
     return Path(__file__).resolve().parent / rel
 
+# ==========================
+# 👤 Profiles (module-level)
+# ==========================
+CURRENT_PROFILE_FILE = norm_path(_default_user_cfg_dir() / "current_profile.json")
+USERS_ROOT = norm_path(_default_user_cfg_dir() / "users")
+
+def _safe_profile_name(name: str) -> str:
+    name = (name or "").strip()
+    name = re.sub(r"[^\w\- ]+", "", name)   # keep letters/numbers/_/-/space
+    name = re.sub(r"\s+", "_", name)
+    return name[:64].strip("_")
+
+def _list_profiles() -> list[str]:
+    if not USERS_ROOT.exists():
+        return []
+    out = []
+    for p in USERS_ROOT.iterdir():
+        if p.is_dir():
+            out.append(p.name)
+    return sorted(out)
+
+def _load_current_profile_name() -> str:
+    try:
+        if CURRENT_PROFILE_FILE.exists():
+            d = json.loads(CURRENT_PROFILE_FILE.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return str(d.get("current", "") or "").strip()
+    except Exception:
+        pass
+    return ""
+
+def _save_current_profile_name(name: str) -> None:
+    CURRENT_PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CURRENT_PROFILE_FILE.write_text(json.dumps({"current": name}, indent=2), encoding="utf-8")
+
+def _profile_root(name: str) -> Path:
+    return USERS_ROOT / name
+
+def _set_active_profile_paths(profile_name: str) -> Path:
+    """
+    Repoint global cache locations to the active profile.
+    Returns profile_root.
+    """
+    global GUI_CACHE_DIR, SEQUENCE_CACHE_FILE, LIGAND_CACHE_FILE, QUEUE_FILE, NOTES_FILE, RUNS_HISTORY_FILE, LIGAND_CACHE
+
+    profile_name = _safe_profile_name(profile_name)
+    root = norm_path(_profile_root(profile_name))
+    root.mkdir(parents=True, exist_ok=True)
+
+    # GUI cache
+    GUI_CACHE_DIR = norm_path(root / "gui_cache")
+    GUI_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    SEQUENCE_CACHE_FILE = GUI_CACHE_DIR / "sequence_cache.json"
+    LIGAND_CACHE_FILE   = GUI_CACHE_DIR / "ligand_cache.json"
+    QUEUE_FILE          = GUI_CACHE_DIR / "job_queue.json"
+    NOTES_FILE          = GUI_CACHE_DIR / "notes.txt"
+    RUNS_HISTORY_FILE   = GUI_CACHE_DIR / "runs_history.json"
+
+    # Ligand structure cache (per-profile)
+    LIGAND_CACHE = norm_path(root / "cache" / "ligands")
+    LIGAND_CACHE.mkdir(parents=True, exist_ok=True)
+
+    return root
+
+SHARED_ROOT = norm_path(_default_user_cfg_dir() / "shared")
+SHARED_ROOT.mkdir(parents=True, exist_ok=True)
+
+def _shared_dir(*parts: str) -> Path:
+    p = SHARED_ROOT
+    for part in parts:
+        p = p / part
+    p = norm_path(p)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 # ==========================
 # 🗒 Notes
@@ -262,7 +360,7 @@ class NotesDialog(QDialog):
         layout.addWidget(self.text_edit)
         if NOTES_FILE.exists():
             self.text_edit.setPlainText(NOTES_FILE.read_text(encoding="utf-8"))
-        save_button = QPushButton("Save & Close", self)
+        save_button = QPushButton("Save + Close", self)
         save_button.clicked.connect(self.save_and_close)
         layout.addWidget(save_button)
 
@@ -408,7 +506,32 @@ class PtmDialog(QDialog):
             })
         return out
 
+class NewProfileDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Create Profile")
+        self.resize(420, 140)
 
+        outer = QVBoxLayout(self)
+        outer.addWidget(QLabel("Profile name:", self))
+
+        self.name_edit = QLineEdit(self)
+        self.name_edit.setPlaceholderText("e.g. Oliver")
+        outer.addWidget(self.name_edit)
+
+        btns = QHBoxLayout()
+        btns.addStretch(1)
+        save = QPushButton("Save", self)
+        cancel = QPushButton("Cancel", self)
+        btns.addWidget(save)
+        btns.addWidget(cancel)
+        outer.addLayout(btns)
+
+        cancel.clicked.connect(self.reject)
+        save.clicked.connect(self.accept)
+
+    def profile_name(self) -> str:
+        return self.name_edit.text().strip()
 
 # ==========================
 # 🧵 Threads
@@ -425,6 +548,7 @@ class BuildThread(QThread):
 
     def run(self):
         try:
+            _ensure_backend_loaded()
             def progress_hook(msg):  # noqa: ANN001
                 self.progress.emit(str(msg))
 
@@ -472,6 +596,7 @@ class RunThread(QThread):
 
     def run(self):
         try:
+            _ensure_backend_loaded()
             runner.run_af3(
                 self.json_path,
                 job_name=self.job_name,
@@ -493,6 +618,7 @@ class DetectConfigWorker(QThread):
 
     def run(self):
         try:
+            _ensure_backend_loaded()
             suggestions: dict[str, Any] = {}
             if sys.platform.startswith("win"):
                 suggestions.update(self._detect_on_windows())
@@ -570,10 +696,6 @@ class DetectConfigWorker(QThread):
         distro = (s.get("wsl_distro", self.current_distro) or "").replace("\x00", "").strip()
         if distro:
             s.update(self._detect_inside_wsl(distro))
-
-        # default cache subdir if missing
-        if "gui_cache_subdir" not in s:
-            s["gui_cache_subdir"] = "cache\\af3_gui_cache"
         s.setdefault("alphafold_docker_image", "alphafold3")
 
         return s
@@ -676,13 +798,29 @@ class AnalysisWorker(QThread):
 
     def run(self):
         try:
-            cmd = ["python", "-m", "af3_pipeline.analysis.post_analysis", "--job", str(self.job_name)]
+            _ensure_backend_loaded()
+            # main_window.py lives at: repo/apps/gui/main_window.py
+            # -> parents[2] == repo/
+            repo_root = Path(__file__).resolve().parents[2]
+
+            # Use the same interpreter as the GUI (conda env, etc.)
+            exe = sys.executable
+
+            cmd = [exe, "-m", "af3_pipeline.analysis.post_analysis", "--job", str(self.job_name)]
             if self.multi_seed:
                 cmd.append("--multi_seed")
 
-            self.log.emit(f"▶ Post-AF3 analysis\n$ {' '.join(cmd)}")
+            # Ensure the subprocess can import af3_pipeline regardless of cwd
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
+            env["AF3_PIPELINE_CONFIG"] = os.environ.get("AF3_PIPELINE_CONFIG", "")
+
+            self.log.emit(f"▶ Post-AF3 analysis\n$ {' '.join(map(str, cmd))}")
+
             with subprocess.Popen(
                 cmd,
+                cwd=str(repo_root),          # ⭐ critical
+                env=env,                     # ⭐ critical
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 bufsize=1,
@@ -696,7 +834,9 @@ class AnalysisWorker(QThread):
                 rc = p.wait()
                 if rc != 0:
                     raise RuntimeError(f"post_analysis returned {rc}")
+
             self.done.emit()
+
         except Exception as e:
             tb = traceback.format_exc()
             self.error.emit(f"{e}\n{tb}")
@@ -793,6 +933,526 @@ def _build_entry_widget(
 
     return refs
 
+
+def _norm_seq_and_index_map(text: str) -> tuple[str, list[int]]:
+    """
+    Normalize sequence to only letters (A-Z, a-z). Return:
+      - normalized uppercase sequence
+      - norm_to_doc: list of document indices (into the ORIGINAL text) for each residue
+        such that normalized[i] corresponds to original_text[norm_to_doc[i]].
+    """
+    norm_chars: list[str] = []
+    norm_to_doc: list[int] = []
+    for i, ch in enumerate(text or ""):
+        if ch.isalpha():
+            norm_chars.append(ch.upper())
+            norm_to_doc.append(i)
+    return "".join(norm_chars), norm_to_doc
+
+def _find_doc_range_for_norm_span(norm_to_doc: list[int], start: int, length: int) -> tuple[int, int]:
+    """
+    Convert (start,length) in normalized coordinates into (doc_start, doc_end_exclusive)
+    in the original editor text.
+    """
+    if not norm_to_doc or length <= 0:
+        return (0, 0)
+    start = max(0, min(start, len(norm_to_doc) - 1))
+    end_norm = max(start, min(start + length - 1, len(norm_to_doc) - 1))
+    doc_start = norm_to_doc[start]
+    doc_end = norm_to_doc[end_norm] + 1
+    # Expand doc_end across any immediately following whitespace/newlines? Not necessary.
+    return (doc_start, doc_end)
+
+def _all_occurrences(haystack: str, needle: str) -> list[int]:
+    """Return all start indices of needle in haystack (allow overlaps)."""
+    if not needle:
+        return []
+    out: list[int] = []
+    i = 0
+    while True:
+        j = haystack.find(needle, i)
+        if j < 0:
+            break
+        out.append(j)
+        i = j + 1  # allow overlaps
+    return out
+
+
+class SequenceMapCanvas(QWidget):
+    """
+    A lightweight ruler+highlight canvas. Parent panel provides:
+      - sequence length
+      - hits and active hit
+      - selection region
+      - scroll position + zoom
+    """
+    requestSeek = pyqtSignal(int)                 # normalized index to center view on
+    requestSelect = pyqtSignal(int, int)          # (start, length) normalized selection
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(70)
+        self.setMouseTracking(True)
+
+        self._seq_len = 0
+        self._px_per_res = 6.0        # zoom
+        self._offset_res = 0          # leftmost residue index
+        self._hits: list[tuple[int, int]] = []       # list of (start, length)
+        self._active_hit_idx: int = -1
+        self._sel: tuple[int, int] | None = None     # (start, length)
+
+        # drag selection state
+        self._dragging = False
+        self._drag_anchor_res: int | None = None
+
+    # ----- model setters -----
+    def setSequenceLength(self, n: int) -> None:
+        self._seq_len = max(0, int(n))
+        self.update()
+
+    def setZoom(self, px_per_res: float) -> None:
+        self._px_per_res = float(max(1.5, min(px_per_res, 60.0)))
+        self.update()
+
+    def setOffset(self, offset_res: int) -> None:
+        self._offset_res = max(0, min(int(offset_res), max(0, self._seq_len - 1)))
+        self.update()
+
+    def setHits(self, hits: list[tuple[int, int]], active_idx: int = -1) -> None:
+        self._hits = hits[:] if hits else []
+        self._active_hit_idx = int(active_idx)
+        self.update()
+
+    def setSelection(self, sel: tuple[int, int] | None) -> None:
+        self._sel = sel
+        self.update()
+
+    # ----- geometry helpers -----
+    def _res_at_x(self, x: int) -> int:
+        # map x px -> residue index
+        res = int(self._offset_res + (x / self._px_per_res))
+        return max(0, min(res, max(0, self._seq_len - 1)))
+
+    def _x_at_res(self, res: int) -> float:
+        return (res - self._offset_res) * self._px_per_res
+
+    def visible_res_count(self) -> int:
+        return int(self.width() / self._px_per_res) + 1
+
+    # ----- painting -----
+    def paintEvent(self, _evt):  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+
+        w = self.width()
+        h = self.height()
+
+        # Background
+        p.fillRect(QRect(0, 0, w, h), self.palette().base())
+
+        # If no sequence, draw hint
+        if self._seq_len <= 0:
+            p.setPen(self.palette().text().color())
+            p.drawText(QRect(0, 0, w, h), int(Qt.AlignmentFlag.AlignCenter), "No sequence")
+            return
+
+        fm = QFontMetrics(p.font())
+        top = 10
+        baseline_y = h // 2
+        tick_top = baseline_y - 12
+        tick_bot = baseline_y + 12
+
+        # Baseline
+        pen_base = QPen(self.palette().text().color())
+        pen_base.setWidth(1)
+        p.setPen(pen_base)
+        p.drawLine(0, baseline_y, w, baseline_y)
+
+        # Highlight hits
+        for idx, (s, ln) in enumerate(self._hits):
+            if ln <= 0:
+                continue
+            x1 = self._x_at_res(s)
+            x2 = self._x_at_res(s + ln)
+            if x2 < 0 or x1 > w:
+                continue
+            rect = QRectF(max(0.0, x1), baseline_y - 16, min(float(w), x2) - max(0.0, x1), 32)
+            if idx == self._active_hit_idx:
+                # stronger fill
+                p.fillRect(rect, self.palette().highlight())
+            else:
+                # lighter fill
+                c = self.palette().highlight().color()
+                c.setAlpha(90)
+                p.fillRect(rect, c)
+
+        # Highlight selection (on top)
+        if self._sel:
+            s, ln = self._sel
+            if ln > 0:
+                x1 = self._x_at_res(s)
+                x2 = self._x_at_res(s + ln)
+                if not (x2 < 0 or x1 > w):
+                    c = self.palette().alternateBase().color()
+                    c.setAlpha(160)
+                    p.fillRect(QRectF(max(0.0, x1), baseline_y - 18, min(float(w), x2) - max(0.0, x1), 36), c)
+
+        # Ticks + labels
+        # Major tick every 10, label every 50
+        first_res = self._offset_res
+        last_res = min(self._seq_len - 1, self._offset_res + self.visible_res_count())
+
+        # Start from nearest 10 below first_res (1-based display makes labels nicer)
+        start_tick = (first_res // 10) * 10
+        for r in range(start_tick, last_res + 1, 10):
+            x = int(self._x_at_res(r))
+            if x < 0:
+                continue
+            # Major tick
+            p.drawLine(x, tick_top, x, tick_bot)
+
+            # label every 50 residues
+            if r % 50 == 0 and r != 0:
+                label = str(r)
+                tw = fm.horizontalAdvance(label)
+                p.drawText(x - tw // 2, top + fm.ascent(), label)
+
+        # End label (sequence length)
+        end_label = f"Len: {self._seq_len}"
+        p.drawText(8, h - 8, end_label)
+
+    # ----- interaction -----
+    def wheelEvent(self, e: QWheelEvent):  # noqa: N802
+        # Ctrl+wheel zoom (common convention)
+        if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = e.angleDelta().y()
+            if delta > 0:
+                self.setZoom(self._px_per_res * 1.15)
+            elif delta < 0:
+                self.setZoom(self._px_per_res / 1.15)
+            e.accept()
+            return
+        super().wheelEvent(e)
+
+    def mousePressEvent(self, e):  # noqa: N802
+        if e.button() == Qt.MouseButton.LeftButton and self._seq_len > 0:
+            self._dragging = True
+            self._drag_anchor_res = self._res_at_x(e.position().x())
+            # single click → caret/selection of length 1
+            self.requestSelect.emit(self._drag_anchor_res, 1)
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):  # noqa: N802
+        if self._dragging and self._drag_anchor_res is not None:
+            cur = self._res_at_x(e.position().x())
+            a = self._drag_anchor_res
+            start = min(a, cur)
+            end = max(a, cur)
+            self.requestSelect.emit(start, end - start + 1)
+            e.accept()
+            return
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e):  # noqa: N802
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            self._drag_anchor_res = None
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
+
+    def mouseDoubleClickEvent(self, e):  # noqa: N802
+        if e.button() == Qt.MouseButton.LeftButton:
+            res = self._res_at_x(e.position().x())
+            self.requestSeek.emit(res)
+            e.accept()
+            return
+        super().mouseDoubleClickEvent(e)
+
+
+class SequenceMapPanel(QWidget):
+    """
+    Composite widget:
+      - map canvas
+      - horizontal scrollbar
+      - search bar + next/prev + hit count
+    Wires to a QPlainTextEdit.
+    """
+    def __init__(self, editor: QPlainTextEdit, parent=None, *, title: str = ""):
+        super().__init__(parent)
+        self._editor = editor
+        self._title = title
+
+        self._seq = ""
+        self._norm_to_doc: list[int] = []
+
+        self._hits: list[tuple[int, int]] = []
+        self._active_hit = -1
+
+        self._offset_res = 0
+        self._px_per_res = 6.0
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 6, 0, 0)
+        outer.setSpacing(6)
+
+        # Optional mini header row
+        head = QHBoxLayout()
+        if title:
+            lab = QLabel(title, self)
+
+            font = lab.font()
+            font.setFamily("Arial")   
+            font.setPointSize(10)                     
+            font.setWeight(QFont.Weight.Normal)    
+            lab.setFont(font)
+
+            head.addWidget(lab)
+        head.addStretch(1)
+
+        self.zoomOutBtn = QPushButton("−", self)
+        self.zoomOutBtn.setFixedWidth(28)
+        self.zoomInBtn = QPushButton("+", self)
+        self.zoomInBtn.setFixedWidth(28)
+        self.zoomHint = QLabel("Ctrl+Wheel to zoom", self)
+        self.zoomHint.setStyleSheet("color: gray;")
+        head.addWidget(self.zoomHint)
+        head.addWidget(self.zoomOutBtn)
+        head.addWidget(self.zoomInBtn)
+        outer.addLayout(head)
+
+        self.canvas = SequenceMapCanvas(self)
+        outer.addWidget(self.canvas)
+
+        self.hscroll = QScrollBar(Qt.Orientation.Horizontal, self)
+        outer.addWidget(self.hscroll)
+
+        # Search row
+        row = QHBoxLayout()
+        self.searchEdit = QLineEdit(self)
+        self.searchEdit.setPlaceholderText("Search motif (e.g. CXXC, KEN, NLS…) — plain text (no regex)")
+        self.searchBtn = QPushButton("Search", self)
+        self.findPrevBtn = QPushButton("◀ Prev", self)
+        self.findNextBtn = QPushButton("Next ▶", self)
+        self.clearBtn = QPushButton("Clear", self)
+        self.hitsLabel = QLabel("", self)
+        self.hitsLabel.setMinimumWidth(90)
+
+        row.addWidget(self.searchEdit, 6)
+        row.addWidget(self.searchBtn, 0)
+        row.addWidget(self.findPrevBtn, 0)
+        row.addWidget(self.findNextBtn, 0)
+        row.addWidget(self.clearBtn, 0)
+        row.addWidget(self.hitsLabel, 0)
+        outer.addLayout(row)
+
+        # --- wiring ---
+        self.zoomInBtn.clicked.connect(lambda: self._set_zoom(self._px_per_res * 1.15))
+        self.zoomOutBtn.clicked.connect(lambda: self._set_zoom(self._px_per_res / 1.15))
+
+        self.hscroll.valueChanged.connect(self._on_scroll_changed)
+        self.canvas.requestSeek.connect(self.center_on_residue)
+        self.canvas.requestSelect.connect(self.select_norm_span)
+
+        self.searchBtn.clicked.connect(self.run_search)
+        self.searchEdit.returnPressed.connect(self.run_search)
+        self.findNextBtn.clicked.connect(lambda: self._step_hit(+1))
+        self.findPrevBtn.clicked.connect(lambda: self._step_hit(-1))
+        self.clearBtn.clicked.connect(self._clear_search)
+
+        # Debounce editor updates & search typing
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(200)
+        self._debounce.timeout.connect(self._recompute_from_editor)
+
+        self._editor.textChanged.connect(self._debounced_refresh)
+
+        # Selection sync: reflect editor selection on the map
+        try:
+            self._editor.selectionChanged.connect(self._sync_selection_from_editor)  # type: ignore[attr-defined]
+        except Exception:
+            # Not fatal if not available
+            pass
+
+        self._recompute_from_editor()
+
+    def run_search(self):
+        """
+        Run search only when the user explicitly requests it.
+        Important: do NOT move focus away from the search box.
+        """
+        self._recompute_hits()
+
+        # If we have hits, select the first hit in the editor BUT keep typing focus in search box.
+        if self._active_hit >= 0 and self._hits:
+            s, ln = self._hits[self._active_hit]
+
+            # perform selection without stealing focus
+            doc_start, doc_end = _find_doc_range_for_norm_span(self._norm_to_doc, s, ln)
+            cursor = self._editor.textCursor()
+            cursor.setPosition(doc_start)
+            cursor.setPosition(doc_end, cursor.MoveMode.KeepAnchor)
+            self._editor.setTextCursor(cursor)
+
+            # update map selection + view (map may scroll, but focus stays)
+            self.canvas.setSelection((s, ln))
+            self.center_on_residue(s)
+
+        # return focus to search box explicitly
+        self.searchEdit.setFocus()
+
+
+    # ----- public helpers -----
+    def _debounced_refresh(self):
+        self._debounce.start()
+
+    def _set_zoom(self, z: float):
+        self._px_per_res = float(max(1.5, min(z, 60.0)))
+        self._update_scrollbar()
+        self._push_view()
+
+    def center_on_residue(self, res: int):
+        if self._seq_len() <= 0:
+            return
+        visible = self.canvas.visible_res_count()
+        new_off = int(res - visible // 2)
+        new_off = max(0, min(new_off, max(0, self._seq_len() - visible)))
+        self._offset_res = new_off
+        self._update_scrollbar()
+        self._push_view()
+
+    def select_norm_span(self, start: int, length: int):
+        if self._seq_len() <= 0 or length <= 0:
+            return
+        start = max(0, min(start, self._seq_len() - 1))
+        length = max(1, min(length, self._seq_len() - start))
+
+        # update editor selection
+        doc_start, doc_end = _find_doc_range_for_norm_span(self._norm_to_doc, start, length)
+        cursor = self._editor.textCursor()
+        cursor.setPosition(doc_start)
+        cursor.setPosition(doc_end, cursor.MoveMode.KeepAnchor)
+        self._editor.setTextCursor(cursor)
+        self._editor.setFocus()
+
+        # update map selection
+        self.canvas.setSelection((start, length))
+        self.center_on_residue(start)
+
+    # ----- internals -----
+    def _seq_len(self) -> int:
+        return len(self._seq)
+
+    def _recompute_from_editor(self):
+        txt = self._editor.toPlainText()
+        self._seq, self._norm_to_doc = _norm_seq_and_index_map(txt)
+        self._hits = []
+        self._active_hit = -1
+        self.canvas.setSequenceLength(self._seq_len())
+        self._update_scrollbar()
+        self._push_view()
+        self._recompute_hits()
+
+    def _update_scrollbar(self):
+        n = self._seq_len()
+        if n <= 0:
+            self.hscroll.setRange(0, 0)
+            self.hscroll.setPageStep(1)
+            self.hscroll.setValue(0)
+            return
+
+        visible = max(1, self.canvas.visible_res_count())
+        max_off = max(0, n - visible)
+        self.hscroll.setRange(0, max_off)
+        self.hscroll.setPageStep(visible)
+        self._offset_res = max(0, min(self._offset_res, max_off))
+        was = self.hscroll.blockSignals(True)
+        try:
+            self.hscroll.setValue(self._offset_res)
+        finally:
+            self.hscroll.blockSignals(was)
+
+    def _push_view(self):
+        self.canvas.setZoom(self._px_per_res)
+        self.canvas.setOffset(self._offset_res)
+        self.canvas.setHits(self._hits, self._active_hit)
+
+    def _on_scroll_changed(self, v: int):
+        self._offset_res = int(v)
+        self._push_view()
+
+    def _recompute_hits(self):
+        motif = (self.searchEdit.text() or "").strip().upper()
+        if not motif:
+            self._hits = []
+            self._active_hit = -1
+            self.hitsLabel.setText("")
+            self.canvas.setHits(self._hits, self._active_hit)
+            return
+
+        # plain-string search (user can type 1..N aa)
+        starts = _all_occurrences(self._seq, motif)
+        self._hits = [(s, len(motif)) for s in starts]
+        self._active_hit = 0 if self._hits else -1
+        self.hitsLabel.setText(f"{len(self._hits)} hit(s)" if self._hits else "0 hit(s)")
+        self.canvas.setHits(self._hits, self._active_hit)
+
+    def _step_hit(self, direction: int):
+        if not self._hits:
+            return
+        self._active_hit = (self._active_hit + direction) % len(self._hits)
+        self.canvas.setHits(self._hits, self._active_hit)
+        s, ln = self._hits[self._active_hit]
+        self.select_norm_span(s, ln)
+
+    def _clear_search(self):
+        self.searchEdit.clear()
+        self._hits = []
+        self._active_hit = -1
+        self.hitsLabel.setText("")
+        self.canvas.setHits(self._hits, self._active_hit)
+
+    def _sync_selection_from_editor(self):
+        # Try to reflect editor selection on the map (best-effort)
+        if not self._norm_to_doc:
+            self.canvas.setSelection(None)
+            return
+        cur = self._editor.textCursor()
+        a = min(cur.selectionStart(), cur.selectionEnd())
+        b = max(cur.selectionStart(), cur.selectionEnd())
+        if a == b:
+            # caret position → select 1 residue (nearest)
+            # Find the nearest normalized residue whose doc index <= a
+            # (binary search would be nicer; linear is ok for typical lengths)
+            idx = 0
+            for i, doc_i in enumerate(self._norm_to_doc):
+                if doc_i <= a:
+                    idx = i
+                else:
+                    break
+            self.canvas.setSelection((idx, 1))
+            return
+
+        # Selection range: take residues with doc index in [a,b)
+        start_norm = None
+        end_norm = None
+        for i, doc_i in enumerate(self._norm_to_doc):
+            if start_norm is None and doc_i >= a:
+                start_norm = i
+            if doc_i < b:
+                end_norm = i
+            else:
+                break
+
+        if start_norm is None or end_norm is None or end_norm < start_norm:
+            self.canvas.setSelection(None)
+            return
+
+        self.canvas.setSelection((start_norm, end_norm - start_norm + 1))
+
 # ==========================
 # 🪟 Main Window
 # ==========================
@@ -800,16 +1460,28 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        ui_path = os.path.join(os.path.dirname(__file__), "main_window.ui")
+        # ---- dynamic entries ----
+        self.protein_entries = []
+        self.dna_entries = []
+        self.rna_entries = []
+
+        # Load UI first
         ui_path = resource_path("main_window.ui")
         uic.loadUi(str(ui_path), self)
-        self.resize(1500, 1200)       # good default
+        self.resize(1500, 1200)
         self.setMinimumSize(900, 600)
 
-        # ---- caches ----
-        self.sequence_cache: dict[str, Any] = _read_json(SEQUENCE_CACHE_FILE, {})
-        self.ligand_cache: dict[str, Any] = _read_json(LIGAND_CACHE_FILE, {})
-        self.runs_history: list[dict[str, Any]] = _read_json(RUNS_HISTORY_FILE, [])
+        # Profiles UI
+        self._install_profiles_row()
+        self._install_sequence_map_panels()
+
+        # ✅ Must activate a profile BEFORE any cache/config IO
+        self._ensure_profile_first_run()
+
+        # ✅ Now that profile is active, load caches from correct per-profile paths
+        self.sequence_cache = _read_json(SEQUENCE_CACHE_FILE, {})
+        self.ligand_cache   = _read_json(LIGAND_CACHE_FILE, {})
+        self.runs_history   = _read_json(RUNS_HISTORY_FILE, [])
 
         # ---- state ----
         self.custom_protein_atom: Optional[str] = None
@@ -819,13 +1491,6 @@ class MainWindow(QMainWindow):
         self.analysis_thread: Optional[AnalysisWorker] = None
         self.current_jobname: str = ""
 
-        # ---- dynamic entries ----
-        self.protein_entries: list[MacroEntryRefs] = []
-        self.dna_entries: list[MacroEntryRefs] = []
-        self.rna_entries: list[MacroEntryRefs] = []
-
-        self._bootstrap_config_yaml_from_template()
-
         # ---- wire up ----
         self._connect_nav()
         self._connect_sequences_page()
@@ -833,6 +1498,9 @@ class MainWindow(QMainWindow):
         self._connect_alphafold_page()
         self._connect_runs_page()
         self._connect_config_page()
+
+        self._current_ligand_notes_name: str = ""
+        self._install_ligand_notes_box()
 
         # ---- initial populate ----
         self._refresh_all_dropdowns()
@@ -842,16 +1510,446 @@ class MainWindow(QMainWindow):
         # covalent field enable
         self.covalentCheckbox.toggled.connect(self._update_covalent_fields)
         self._update_covalent_fields()
-
-        # atom selection custom
         self.proteinAtomComboBox.currentTextChanged.connect(self._on_protein_atom_change)
 
+        self._ensure_profile_first_run()
+
         # --- First run detection (only if required fields missing) ---
-        if self._config_needs_setup():
-            self.pagesStack.setCurrentIndex(4)  # Config tab index (adjust if different)
-            self.navList.setCurrentRow(4)
-            self.log("🧭 First-time setup: running auto-detect…")
-            self._start_autodetect()
+
+    def _active_profile_name(self) -> str:
+        return _safe_profile_name(getattr(self, "_active_profile", "") or "")
+
+    def _rename_active_profile(self):
+        old = self._active_profile_name()
+        if not old:
+            _msg_warn(self, "No active profile", "Select a profile first.")
+            return
+
+        new_raw, ok = QInputDialog.getText(self, "Rename Profile", "New profile name:", text=old)
+        if not ok:
+            return
+
+        new = _safe_profile_name(new_raw)
+        if not new:
+            _msg_warn(self, "Invalid name", "Please enter a valid profile name.")
+            return
+        if new == old:
+            return
+
+        profiles = _list_profiles()
+        if new in profiles:
+            _msg_warn(self, "Already exists", f"A profile named '{new}' already exists.")
+            return
+
+        src = _profile_root(old)
+        dst = _profile_root(new)
+        try:
+            if not src.exists():
+                _msg_warn(self, "Missing profile", f"Profile folder not found: {src}")
+                return
+            src.rename(dst)
+        except Exception as e:
+            _msg_warn(self, "Rename failed", str(e))
+            return
+
+        _save_current_profile_name(new)
+        self._refresh_profiles_dropdown()
+        self.profileDropdown.setCurrentText(new)
+        self._activate_profile(new, run_autodetect_if_needed=False)
+        self.log(f"✅ Renamed profile '{old}' → '{new}'")
+
+    def _delete_active_profile(self):
+        name = self._active_profile_name()
+        if not name:
+            _msg_warn(self, "No active profile", "Select a profile first.")
+            return
+
+        # Optional safety: block deletion while jobs running, if you track that state
+        # if getattr(self, "_job_running", False):
+        #     _msg_warn(self, "Busy", "Can't delete profile while a job is running.")
+        #     return
+
+        reply = QMessageBox.question(
+            self,
+            "Delete Profile",
+            f"Delete profile '{name}'?\n\nThis will remove:\n{_profile_root(name)}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        root = _profile_root(name)
+        try:
+            import shutil
+            if root.exists():
+                shutil.rmtree(root)
+        except Exception as e:
+            _msg_warn(self, "Delete failed", str(e))
+            return
+
+        self.log(f"🗑️ Deleted profile '{name}'")
+
+        # Choose another profile or force-create a new one
+        remaining = _list_profiles()
+        if remaining:
+            new_active = remaining[0]
+            _save_current_profile_name(new_active)
+            self._refresh_profiles_dropdown()
+            self.profileDropdown.setCurrentText(new_active)
+            self._activate_profile(new_active, run_autodetect_if_needed=False)
+        else:
+            _save_current_profile_name("")
+            self._refresh_profiles_dropdown()
+            self._ensure_profile_first_run()
+
+    # =======================
+    # 👤 Profiles UI + switching
+    # =======================
+    def _install_profiles_row(self):
+        if hasattr(self, "_profilesRow"):
+            return
+
+        self._profilesRow = QWidget(self)
+        row = QHBoxLayout(self._profilesRow)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+
+        self.profileDropdown = QComboBox(self._profilesRow)
+        self.profileDropdown.setMinimumWidth(170)
+
+        self.newProfileButton = QPushButton("➕", self._profilesRow)
+        self.newProfileButton.setFixedWidth(42)
+        self.newProfileButton.setToolTip("Create new profile")
+
+        # ✅ NEW: options menu button
+        self.profileOptionsButton = QToolButton(self._profilesRow)
+        self.profileOptionsButton.setText("⋯")
+        self.profileOptionsButton.setFixedWidth(42)
+        self.profileOptionsButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+
+        menu = QMenu(self.profileOptionsButton)
+        self.actNewProfile = menu.addAction("New profile…")
+        self.actRenameProfile = menu.addAction("Rename profile…")
+        self.actDeleteProfile = menu.addAction("Delete profile…")
+        self.profileOptionsButton.setMenu(menu)
+
+        row.addWidget(self.profileDropdown, 1)
+        row.addWidget(self.newProfileButton, 0)
+        row.addWidget(self.profileOptionsButton, 0)
+
+        # Insert above navList
+        try:
+            self.sidebarLayout.insertWidget(1, self._profilesRow)
+        except Exception as e:
+            self.log(f"⚠️ Failed to insert profile row: {e}")
+
+        self.newProfileButton.clicked.connect(self._create_new_profile)
+        self.actNewProfile.triggered.connect(lambda: self._create_new_profile(force=False))
+        self.actRenameProfile.triggered.connect(self._rename_active_profile)
+        self.actDeleteProfile.triggered.connect(self._delete_active_profile)
+
+        self.profileDropdown.currentTextChanged.connect(self._on_profile_selected)
+
+        self._refresh_profiles_dropdown()
+
+    def _set_profile_dropdown_silent(self, name: str) -> None:
+        was = self.profileDropdown.blockSignals(True)
+        try:
+            self.profileDropdown.setCurrentText(name)
+        finally:
+            self.profileDropdown.blockSignals(was)
+
+    def _refresh_profiles_dropdown(self):
+        profiles = _list_profiles()
+        cur = _load_current_profile_name()
+
+        self.profileDropdown.blockSignals(True)
+        try:
+            self.profileDropdown.clear()
+            self.profileDropdown.addItem("Select profile…")
+            self.profileDropdown.addItems(profiles)
+
+            if cur and cur in profiles:
+                self.profileDropdown.setCurrentText(cur)
+            else:
+                self.profileDropdown.setCurrentIndex(0)
+        finally:
+            self.profileDropdown.blockSignals(False)
+
+    def _ensure_profile_first_run(self):
+        """
+        On first startup: force profile creation before anything else.
+        """
+        cur = _load_current_profile_name()
+        if cur and cur in _list_profiles():
+            self._activate_profile(cur, run_autodetect_if_needed=False)
+            return
+
+        # No profile exists / not set: force create
+        self._create_new_profile(force=True)
+
+    def _create_new_profile(self, force: bool = False):
+        dlg = NewProfileDialog(self)
+        if force:
+            # Make it harder to skip on first run
+            dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+
+        if not dlg.exec():
+            if force:
+                _msg_warn(self, "Profile required", "You must create a profile to continue.")
+                return self._create_new_profile(force=True)
+            return
+
+        raw = dlg.profile_name()
+        name = _safe_profile_name(raw)
+        if not name:
+            _msg_warn(self, "Invalid name", "Please enter a profile name.")
+            return self._create_new_profile(force=force)
+
+        root = _profile_root(name)
+        if root.exists() and any(root.iterdir()):
+            # Existing profile
+            pass
+        else:
+            root.mkdir(parents=True, exist_ok=True)
+
+        _save_current_profile_name(name)
+        self._refresh_profiles_dropdown()
+        self._set_profile_dropdown_silent(name)
+        self._activate_profile(name, run_autodetect_if_needed=True)
+
+    def _on_profile_selected(self, name: str):
+        name = (name or "").strip()
+        if not name or name == "Select profile…":
+            return
+        # Avoid reloading same profile repeatedly
+        if getattr(self, "_active_profile", "") == name:
+            return
+        self._activate_profile(name, run_autodetect_if_needed=False)
+
+    def _activate_profile(self, name: str, *, run_autodetect_if_needed: bool):
+        name = _safe_profile_name(name)
+        if not name:
+            return
+
+        if getattr(self, "_activating_profile", False):
+            return
+        if getattr(self, "_active_profile", "") == name and hasattr(self, "_profile_root"):
+            # already active and initialized
+            if not run_autodetect_if_needed:
+                return
+
+        self._activating_profile = True
+        self._active_profile = name
+        _save_current_profile_name(name)
+        try:
+            # 1) repoint cache locations (globals)
+            root = _set_active_profile_paths(name)
+            self._profile_root = root
+            self.log(f"👤 Active profile: {name}")
+            self.log(f"📁 Profile root: {root}")
+
+            # 2) Per-profile env vars
+            profile_cfg = root / "config.yaml"
+            os.environ["AF3_PIPELINE_CONFIG"] = str(profile_cfg)
+
+            # ✅ Most important missing piece:
+            os.environ["AF3_PIPELINE_CACHE_ROOT"] = str(root / "cache")
+
+            # Optional shared caches (fine)
+            os.environ["AF3_PIPELINE_MSA_CACHE"] = str(_shared_dir("msa"))
+            os.environ["AF3_PIPELINE_TEMPLATE_CACHE"] = str(_shared_dir("templates"))
+
+            # 3) Now load backend (after env set)
+            _ensure_backend_loaded()
+
+            # 4) Ensure config exists for this profile
+            self._bootstrap_config_yaml_from_template()
+
+            # 4) Reload cfg from this profile config
+            try:
+                cfg.reload(profile_cfg)
+            except Exception as e:
+                self.log(f"⚠️ cfg.reload failed: {e}")
+
+            # 5) Reload caches from the *profile* paths
+            self.sequence_cache = _read_json(SEQUENCE_CACHE_FILE, {})
+            self.ligand_cache   = _read_json(LIGAND_CACHE_FILE, {})
+            self.runs_history   = _read_json(RUNS_HISTORY_FILE, [])
+
+            # 6) Refresh UI
+            self._refresh_all_dropdowns()
+            self._refresh_queue_view()
+            self._refresh_runs_view()
+
+            # Also reset ligand notes box (if installed)
+            if hasattr(self, "ligandNotesEdit"):
+                self._load_ligand_notes_for_name(self.ligandDropdown.currentText().strip())
+
+            # 7) Run autodetect if needed
+            if run_autodetect_if_needed or self._config_needs_setup():
+                self.pagesStack.setCurrentIndex(0)  # CONFIG page index in your .ui (INTRO=0..CONFIG=5)
+                self.navList.setCurrentRow(0)
+                self.log("🧭 Running per-profile auto-detect…")
+                self._start_autodetect()
+        finally:
+            self._activating_profile = False
+
+    # =======================
+    # 📝 Ligand Notes (cached with ligand)
+    # =======================
+    def _install_ligand_notes_box(self):
+        """
+        Add a per-ligand notes editor underneath the 2D preview on the Ligands page.
+        No .ui changes required.
+        Saves notes to: LIGAND_CACHE/<hash>/NOTES.txt
+        """
+        # Guard: only install once
+        if hasattr(self, "ligandNotesEdit"):
+            return
+
+        # Create label + editor
+        self.ligandNotesLabel = QLabel("Notes", self)
+        self.ligandNotesEdit = QPlainTextEdit(self)
+        self.ligandNotesEdit.setPlaceholderText("Notes for this ligand… (autosaved)")
+        self.ligandNotesEdit.setMinimumHeight(140)
+
+        # Insert under preview label within existing ligandPreviewLayout
+        try:
+            # Your UI has: self.ligandPreviewLayout inside ligandPreviewGroup
+            # Add after the preview image label
+            self.ligandPreviewLayout.addWidget(self.ligandNotesLabel)
+            self.ligandPreviewLayout.addWidget(self.ligandNotesEdit)
+        except Exception as e:
+            self.log(f"⚠️ Failed to add ligand notes box to layout: {e}")
+            return
+
+        # Debounced autosave
+        self._ligand_notes_save_timer = QTimer(self)
+        self._ligand_notes_save_timer.setSingleShot(True)
+        self._ligand_notes_save_timer.setInterval(350)
+        self._ligand_notes_save_timer.timeout.connect(self._save_current_ligand_notes_silent)
+
+        self.ligandNotesEdit.textChanged.connect(lambda: self._ligand_notes_save_timer.start())
+
+        # Disabled until a ligand is selected
+        self.ligandNotesEdit.setEnabled(False)
+        self.ligandNotesLabel.setEnabled(False)
+
+    def _ligand_hash_dir_from_entry(self, entry: dict) -> Optional[Path]:
+        """
+        Return LIGAND_CACHE/<hash> for a ligand cache entry.
+        """
+        try:
+            lig_hash = entry.get("hash")
+            if not lig_hash:
+                smiles = entry.get("smiles", "") or ""
+                lig_hash = cache_utils.compute_hash(smiles)
+            lig_dir = LIGAND_CACHE / str(lig_hash)
+            lig_dir.mkdir(parents=True, exist_ok=True)
+            return lig_dir
+        except Exception:
+            return None
+
+    def _ligand_notes_path_from_entry(self, entry: dict) -> Optional[Path]:
+        lig_dir = self._ligand_hash_dir_from_entry(entry)
+        if not lig_dir:
+            return None
+        return lig_dir / "NOTES.txt"
+
+    def _load_ligand_notes_for_name(self, ligand_name: str):
+        """
+        Load notes for ligand_name into the notes widget.
+        """
+        if not hasattr(self, "ligandNotesEdit"):
+            return
+
+        ligand_name = (ligand_name or "").strip()
+        entry = self.ligand_cache.get(ligand_name)
+        if not isinstance(entry, dict):
+            # No ligand selected / bad entry
+            self._current_ligand_notes_name = ""
+            self.ligandNotesEdit.blockSignals(True)
+            try:
+                self.ligandNotesEdit.setPlainText("")
+            finally:
+                self.ligandNotesEdit.blockSignals(False)
+            self.ligandNotesEdit.setEnabled(False)
+            self.ligandNotesLabel.setEnabled(False)
+            return
+
+        notes_path = self._ligand_notes_path_from_entry(entry)
+        txt = ""
+        if notes_path and notes_path.exists():
+            try:
+                txt = notes_path.read_text(encoding="utf-8")
+            except Exception:
+                txt = ""
+
+        self._current_ligand_notes_name = ligand_name
+
+        self.ligandNotesEdit.blockSignals(True)
+        try:
+            self.ligandNotesEdit.setPlainText(txt)
+        finally:
+            self.ligandNotesEdit.blockSignals(False)
+
+        self.ligandNotesEdit.setEnabled(True)
+        self.ligandNotesLabel.setEnabled(True)
+
+    def _save_current_ligand_notes_silent(self):
+        """
+        Save current notes text to the currently-selected ligand's cache folder.
+        Silent (no popups). Safe to call frequently.
+        """
+        if not hasattr(self, "ligandNotesEdit"):
+            return
+
+        name = (self._current_ligand_notes_name or "").strip()
+        if not name:
+            return
+
+        entry = self.ligand_cache.get(name)
+        if not isinstance(entry, dict):
+            return
+
+        notes_path = self._ligand_notes_path_from_entry(entry)
+        if not notes_path:
+            return
+
+        try:
+            notes_path.parent.mkdir(parents=True, exist_ok=True)
+            notes_path.write_text(self.ligandNotesEdit.toPlainText(), encoding="utf-8")
+        except Exception as e:
+            # Log once in a while; keep it quiet to avoid annoying the user
+            self.log(f"⚠️ Failed to save ligand notes for '{name}': {e}")
+
+    def _install_sequence_map_panels(self):
+        """
+        Create + insert map/search panels under each sequence editor on the Sequences page.
+        No .ui changes needed.
+        """
+        # Protein
+        try:
+            self._proteinSeqMapPanel = SequenceMapPanel(self.proteinSeqEditor, self, title="Protein map")
+            self.proteinSeqGroupLayout.addWidget(self._proteinSeqMapPanel)
+        except Exception as e:
+            self.log(f"⚠️ Failed to install protein sequence map: {e}")
+
+        # DNA
+        try:
+            self._dnaSeqMapPanel = SequenceMapPanel(self.dnaSeqEditor, self, title="DNA map")
+            self.dnaSeqGroupLayout.addWidget(self._dnaSeqMapPanel)
+        except Exception as e:
+            self.log(f"⚠️ Failed to install DNA sequence map: {e}")
+
+        # RNA
+        try:
+            self._rnaSeqMapPanel = SequenceMapPanel(self.rnaSeqEditor, self, title="RNA map")
+            self.rnaSeqGroupLayout.addWidget(self._rnaSeqMapPanel)
+        except Exception as e:
+            self.log(f"⚠️ Failed to install RNA sequence map: {e}")
 
     def _set_combo_text_force(self, combo: QComboBox, text: str) -> None:
         text = (text or "").strip()
@@ -892,6 +1990,10 @@ class MainWindow(QMainWindow):
         tmpl = self._template_yaml_path()
         data: dict[str, Any] = {}
 
+        user_home = Path.home()               
+        linux_home_guess = f"/home/{user_home.name}"
+        repo_guess = f"{linux_home_guess}/Repositories/alphafold"
+
         if tmpl.exists():
             try:
                 loaded = yaml.safe_load(tmpl.read_text(encoding="utf-8")) or {}
@@ -905,13 +2007,11 @@ class MainWindow(QMainWindow):
             if k not in data or data.get(k) in (None, ""):
                 data[k] = v
 
-        put_if_missing("platform", "wsl" if sys.platform.startswith("win") else "linux")
         put_if_missing("wsl_distro", "Ubuntu-22.04")
         put_if_missing("gui_dir", str(Path(__file__).resolve().parent))
-        put_if_missing("gui_cache_subdir", "cache/af3_gui_cache")
-        put_if_missing("linux_home_root", "/home/olive")
+        put_if_missing("linux_home_root", linux_home_guess)
 
-        put_if_missing("af3_dir", "/home/olive/Repositories/alphafold")
+        put_if_missing("af3_dir", repo_guess)
         put_if_missing("docker_bin", "docker")
         put_if_missing("alphafold_docker_image", "alphafold3")
         put_if_missing("alphafold_docker_env", {})
@@ -924,7 +2024,7 @@ class MainWindow(QMainWindow):
         msa.setdefault("threads", 10)
         msa.setdefault("sensitivity", 5.7)
         msa.setdefault("max_seqs", 25)
-        msa.setdefault("db", "/home/olive/Repositories/alphafold/mmseqs_db")
+        msa.setdefault("db", f"{repo_guess}/mmseqs_db")
 
         # --- Nested ligand defaults ---
         lig = data.get("ligand")
@@ -1060,13 +2160,15 @@ class MainWindow(QMainWindow):
 
     def _start_autodetect(self):
         # Avoid double-running
+        if getattr(self, "_autodetect_in_flight", False):
+            return
+        self._autodetect_in_flight = True
         if hasattr(self, "_detect_thread") and self._detect_thread and self._detect_thread.isRunning():
             return
 
-        plat = (self.cfgPlatform.currentText() or "wsl").strip()
         distro = self.cfgWslDistro.text().strip()
 
-        self._detect_thread = DetectConfigWorker(plat, distro)
+        self._detect_thread = DetectConfigWorker("wsl", distro)
         self._detect_thread.log.connect(self.log)
         self._detect_thread.done.connect(self._on_autodetect_done)
         self._detect_thread.start()
@@ -1080,19 +2182,16 @@ class MainWindow(QMainWindow):
 
 
     def _on_autodetect_done(self, s: dict):
+        self._autodetect_in_flight = False
         if not s:
             self.log("⚠️ Auto-detect returned no suggestions.")
             return
 
         # Top-level simple fields
-        if "platform" in s:
-            self._set_combo_text_force(self.cfgPlatform, str(s["platform"]))
         if "wsl_distro" in s:
             self.cfgWslDistro.setText(str(s["wsl_distro"]))
         if "gui_dir" in s:
             self.cfgGuiDir.setText(str(s["gui_dir"]))
-        if "gui_cache_subdir" in s:
-            self.cfgGuiCacheSubdir.setText(str(s["gui_cache_subdir"]))
         if "linux_home_root" in s:
             self.cfgLinuxHomeRoot.setText(str(s["linux_home_root"]))
         if "af3_dir" in s:
@@ -1110,29 +2209,30 @@ class MainWindow(QMainWindow):
 
         self._save_config_yaml_silent()
         self._reset_config_fields_from_cfg()
+        try:
+            _ensure_backend_loaded()
+            cfg.reload(self._config_yaml_path())
+            self.log(f"🧪 cfg msa.db = {cfg.get('msa.db','')}")
+        except Exception as e:
+            self.log(f"⚠️ cfg reload after autodetect failed: {e}")
 
         self.log("✅ Auto-detect applied + config saved.")
 
     def _config_needs_setup(self) -> bool:
-        # Required fields to run in your setup
-        plat = (self.cfgPlatform.currentText() or "").strip().lower()
-        if not plat:
-            return True
+        data = self._load_config_yaml_best_effort()
 
-        if plat == "wsl" and not self.cfgWslDistro.text().strip():
-            return True
+        # msa.db is required for MSA generation
+        msa = data.get("msa", {}) if isinstance(data.get("msa", {}), dict) else {}
+        msa_db = (msa.get("db") or "").strip()
 
-        if not self.cfgGuiDir.text().strip():
-            return True
-
-        if not self.cfgAf3Dir.text().strip():
-            return True
-
-        # MSA DB is required for MSA generation
-        if not self.cfgMMseqsDB.text().strip():
-            return True
-
-        return False
+        required = [
+            (data.get("wsl_distro") or "").strip(),
+            (data.get("gui_dir") or "").strip(),
+            (data.get("linux_home_root") or "").strip(),
+            (data.get("af3_dir") or "").strip(),
+            msa_db,
+        ]
+        return any(not x for x in required)
 
 
 
@@ -1249,6 +2349,7 @@ class MainWindow(QMainWindow):
     # 💊 Ligands page (view/save)
     # =======================
     def _connect_ligands_page(self):
+        self._install_ligand_notes_box()
         self.ligandDropdown.currentTextChanged.connect(self._load_ligand_view)
         self.ligandSaveButton.clicked.connect(self._save_ligand_view)
         self.ligandDeleteButton.clicked.connect(self._delete_ligand_view)
@@ -1299,11 +2400,13 @@ class MainWindow(QMainWindow):
             _msg_err(self, "Error", f"Ligand generation failed:\n{e}")
 
     def _load_ligand_view(self, name: str):
+        self._save_current_ligand_notes_silent()
         if name in {"Select saved…", "Select saved..."}:
             self.ligandName.clear()
             self.ligandSmiles.clear()
             self.ligandPreviewLabel.setText("(Preview image will appear here)")
             self.ligandPreviewLabel.setPixmap(QPixmap())
+            self._load_ligand_notes_for_name("")
             return
 
         entry = self.ligand_cache.get(name)
@@ -1318,6 +2421,7 @@ class MainWindow(QMainWindow):
             self.ligandSmiles.setText(entry.get("smiles", "") or "")
 
         self._update_ligand_preview_from_cache(name)
+        self._load_ligand_notes_for_name(name)
 
     def _delete_ligand_view(self):
         name = self.ligandDropdown.currentText().strip()
@@ -1935,43 +3039,34 @@ class MainWindow(QMainWindow):
     # 📂 Output directory (config-aware)
     # =======================
     def _open_output_directory(self):
-        """
-        Open <af3_dir>/af_output
-        Windows opens UNC: \\wsl.localhost\<distro>\<af3_dir>\af_output
-        """
         import subprocess as _subprocess
-        from pathlib import PurePosixPath
 
-        af3_dir_cfg = (cfg.get("af3_dir") or "").strip()
-        linux_output = PurePosixPath(af3_dir_cfg) / "af_output"
-
-        if sys.platform.startswith("win"):
-            distro = cfg.get("wsl_distro") or "Ubuntu-22.04"
-            linux_part = str(linux_output).lstrip("/").replace("/", "\\")
-            unc_str = rf"\\wsl.localhost\{distro}\{linux_part}"
-            output_dir = Path(unc_str)
-        else:
-            output_dir = Path(str(linux_output))
+        # Always use the *local* user home, not WSL
+        target_dir = Path.home() / ".af3_pipeline" / "jobs"
 
         try:
-            if output_dir.exists():
-                if sys.platform.startswith("win"):
-                    os.startfile(str(output_dir))  # type: ignore[attr-defined]
-                elif sys.platform == "darwin":
-                    _subprocess.call(["open", str(output_dir)])
-                else:
-                    _subprocess.call(["xdg-open", str(output_dir)])
+            target_dir.mkdir(parents=True, exist_ok=True)  # ensure it exists
+
+            if sys.platform.startswith("win"):
+                os.startfile(str(target_dir))  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                _subprocess.call(["open", str(target_dir)])
             else:
-                _msg_warn(self, "Not found", f"Output directory not found:\n{output_dir}")
+                _subprocess.call(["xdg-open", str(target_dir)])
         except OSError as e:
-            _msg_err(self, "Error", f"Failed to open output directory:\n{output_dir}\n\n{e}")
+            _msg_err(
+                self,
+                "Error",
+                f"Failed to open jobs directory:\n{target_dir}\n\n{e}",
+            )
+
 
     # =======================
     # 🧾 Runs tab
     # =======================
     def _connect_runs_page(self):
         self.runsList.currentRowChanged.connect(self._show_selected_run_details)
-        self.runsOpenOutputButton.clicked.connect(self._open_selected_run_output)
+        self.runsOpenOutputButton.clicked.connect(self._open_output_directory)
         self.runsLoadToAlphafoldButton.clicked.connect(self._load_selected_run_to_alphafold)
 
     def _record_run_history_from_spec(self, spec: dict[str, Any], *, json_path: str):
@@ -2011,13 +3106,6 @@ class MainWindow(QMainWindow):
             return
         pretty = json.dumps(rec, indent=2)
         self.runDetailsText.setPlainText(pretty)
-
-    def _open_selected_run_output(self):
-        rec = self._selected_run_record()
-        if not rec:
-            return
-        # reuse the same "Open Output Directory" behavior, but ideally open job subfolder later
-        self._open_output_directory()
 
     def _load_selected_run_to_alphafold(self):
         rec = self._selected_run_record()
@@ -2255,11 +3343,9 @@ class MainWindow(QMainWindow):
                     env_dict[k.strip()] = v.strip().strip('"').strip("'")
 
         return {
-            "platform": (self.cfgPlatform.currentText() or "wsl").strip(),
             "wsl_distro": self.cfgWslDistro.text().strip(),
             "gui_dir": self.cfgGuiDir.text().strip(),
-            "gui_cache_subdir": self.cfgGuiCacheSubdir.text().strip(),
-            "cache_root": str(Path.home() / ".af3_pipeline" / "cache"),
+            "cache_root": str(self._profile_root / "cache") if hasattr(self, "_profile_root") else str(Path.home() / ".af3_pipeline" / "cache"),
             "linux_home_root": self.cfgLinuxHomeRoot.text().strip(),
 
             "af3_dir": self.cfgAf3Dir.text().strip(),
@@ -2294,13 +3380,7 @@ class MainWindow(QMainWindow):
             # Write yaml first
             self._save_config_yaml()
 
-            # Update GUI-local cache directory if gui_dir/subdir changed
-            gui_dir = Path(self.cfgGuiDir.text().strip())
-            subdir  = self.cfgGuiCacheSubdir.text().strip()
-            new_cache = norm_path(gui_dir / subdir)
-            new_cache.mkdir(parents=True, exist_ok=True)
-
-            self.log(f"⚙️ Applied config (saved to YAML). GUI cache now: {new_cache}")
+            self.log(f"⚙️ Applied config (saved to YAML).")
             _msg_info(
                 self,
                 "Applied",
@@ -2313,7 +3393,9 @@ class MainWindow(QMainWindow):
         return Path(__file__).resolve().parent
 
     def _config_yaml_path(self) -> Path:
-        # match your config loader preference (repo-local first)
+        root = getattr(self, "_profile_root", None)
+        if isinstance(root, Path):
+            return root / "config.yaml"
         return Path.home() / ".af3_pipeline" / "config.yaml"
     
     def _read_yaml_file(self, p: Path) -> dict[str, Any]:
@@ -2368,12 +3450,10 @@ class MainWindow(QMainWindow):
         def g(key, default=""):
             return (data.get(key, cfg.get(key, default)) if isinstance(data, dict) else cfg.get(key, default))
 
-        self._set_combo_text_force(self.cfgPlatform, str(g("platform", "")))
         self.cfgWslDistro.setText(str(g("wsl_distro", "")))
         self.cfgLinuxHomeRoot.setText(str(g("linux_home_root", "")))
 
         self.cfgGuiDir.setText(str(g("gui_dir", "")))
-        self.cfgGuiCacheSubdir.setText(str(g("gui_cache_subdir", "")))
 
         self.cfgAf3Dir.setText(str(g("af3_dir", "")))
         self.cfgDockerBin.setText(str(g("docker_bin", "")))
@@ -2424,7 +3504,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     try:
-        _ = cfg.get("af3_output_dir")
+        pass
     except Exception as e:
         QMessageBox.critical(
             None,

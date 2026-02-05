@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 import pandas as pd
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from af3_pipeline.config import cfg
 
 # =========================================================
@@ -29,7 +30,7 @@ from af3_pipeline.config import cfg
 ROSETTA_BASE = (cfg.get("rosetta_relax_bin") or "").strip()
 if not ROSETTA_BASE:
     raise RuntimeError(
-        "Missing config key: rosetta_relax_bin (set to Rosetta bundle root, e.g. /home/olive/rosetta/<bundle>)."
+        "Missing config key: rosetta_relax_bin (set to Rosetta bundle root, e.g. /home/<user>/rosetta/<bundle>)."
     )
 
 ROSETTA_BASE = str(PurePosixPath(ROSETTA_BASE))
@@ -42,6 +43,11 @@ M2P_PY = f"{ROSETTA_BASE}/main/source/scripts/python/public/molfile_to_params.py
 DISTRO_NAME  = cfg.get("wsl_distro", "Ubuntu-22.04")
 LINUX_HOME   = cfg.get("linux_home_root", "")
 ALPHAFOLD_BASE = cfg.get("af3_dir", f"{LINUX_HOME}/Repositories/alphafold")
+
+APP_TZ = ZoneInfo(cfg.get("timezone", "America/Los_Angeles"))
+
+def now_local() -> datetime:
+    return datetime.now(APP_TZ)
 
 # =========================================================
 # 🧰 Windows → WSL launcher setup
@@ -204,7 +210,7 @@ def run(job_dir: str | Path, multi_seed: bool = False, model_path: str | Path | 
     job_name = job_dir.name
     base_job = _trim_timestamp(job_name)
     
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = now_local().strftime("%Y%m%d_%H%M%S")
     prep_dir = job_dir / f"rosetta_relax_{timestamp}"
     prep_dir.mkdir(parents=True, exist_ok=True)
 

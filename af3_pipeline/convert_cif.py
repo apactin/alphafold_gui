@@ -23,11 +23,7 @@ from typing import Dict, Tuple, Optional
 
 from rdkit import Chem
 
-from af3_pipeline.cache_utils import CACHE_ROOT
-
-
-BASE_DIR = CACHE_ROOT / "ligands"
-
+from af3_pipeline.cache_utils import get_cache_dir, get_cache_file
 
 def bond_order_from_count(count: int) -> Tuple[str, str]:
     # Legacy fallback heuristic based on duplicated CONECT entries
@@ -81,16 +77,16 @@ def _load_sdf_mol(sdf_path: Path) -> Optional[Chem.Mol]:
         return None
 
 
-def convert_pdb_to_cif(hash: str, compound_id: str) -> Path:
+def convert_pdb_to_cif(key_hash: str, compound_id: str) -> Path:
     """
     Convert a cached ligand PDB to an AF3-compatible CIF.
     Returns the written CIF Path.
     """
     compound_id_clean = re.sub(r"[^A-Za-z0-9._]", "", compound_id).strip("_").upper()
 
-    ligand_dir = BASE_DIR / hash
-    ligand_pdb = ligand_dir / "LIGAND.pdb"
-    ligand_sdf = ligand_dir / "LIGAND.sdf"  # preferred chemistry source
+    ligand_dir = get_cache_dir("ligands", key_hash)
+    ligand_pdb = get_cache_file("ligands", key_hash, "LIGAND.pdb")
+    ligand_sdf = get_cache_file("ligands", key_hash, "LIGAND.sdf")
 
     if not ligand_pdb.exists():
         raise FileNotFoundError(f"Missing ligand PDB at: {ligand_pdb}")

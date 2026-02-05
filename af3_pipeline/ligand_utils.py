@@ -220,7 +220,7 @@ def _write_2d_depiction_png(
     prefer_coordgen=True,
     padding=0.1,          # ↓ whitespace
     bond_length=42,        # ↑ molecule size (try 35–60)
-    base_font_size7,     # ↑ labels
+    base_font_size=7,     # ↑ labels
     stereo_label_scale=0.9,
     bond_line_width=2,
 ) -> None:

@@ -22,11 +22,31 @@ LINUX_HOME   = cfg.get("linux_home_root", "")
 WSL_EXE = r"C:\Windows\System32\wsl.exe" if platform.system() == "Windows" else "wsl"
 
 def linuxize_path(p: Path) -> str:
+    """Convert UNC/Windows paths → WSL Linux paths."""
     s = str(p)
+
+    # UNC -> WSL absolute (\\wsl.localhost\Distro\home\... -> /home/...)
     s = s.replace(f"\\\\wsl.localhost\\{DISTRO_NAME}", "")
     s = s.replace("\\", "/")
-    if not (s.startswith("/home") or s.startswith("/mnt")):
-        s = f"{LINUX_HOME}/" + s.lstrip("/")
+
+    # Windows drive -> /mnt/<drive>/...
+    # e.g. C:/Users/... -> /mnt/c/Users/...
+    m = re.match(r"^([A-Za-z]):/(.*)$", s)
+    if m:
+        drive = m.group(1).lower()
+        rest = m.group(2)
+        return f"/mnt/{drive}/{rest}"
+
+    # If already a valid WSL absolute, keep it
+    if s.startswith("/home") or s.startswith("/mnt") or s.startswith("/tmp") or s.startswith("/var"):
+        return s
+
+    # Otherwise, prefix linux home root (only if configured)
+    if LINUX_HOME:
+        if not s.startswith("/"):
+            s = f"{LINUX_HOME}/" + s.lstrip("/")
+        else:
+            s = f"{LINUX_HOME}" + s
     return s
 
 def run_wsl(cmd: str) -> subprocess.CompletedProcess:
@@ -34,7 +54,10 @@ def run_wsl(cmd: str) -> subprocess.CompletedProcess:
         full = [WSL_EXE, "-d", DISTRO_NAME, "--", "bash", "-lc", cmd]
     else:
         full = ["bash", "-lc", cmd]
-    return subprocess.run(full, text=True, capture_output=True)
+    proc = subprocess.run(full, text=True, capture_output=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"WSL cmd failed ({proc.returncode}):\n{cmd}\n\nSTDOUT:\n{proc.stdout}\n\nSTDERR:\n{proc.stderr}")
+    return proc
 
 class _PDBAtom:
     __slots__ = ("name", "x", "y", "z", "element")

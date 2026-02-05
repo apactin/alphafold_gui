@@ -17,6 +17,7 @@ Writes:
 
 import json, platform, subprocess, re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from af3_pipeline.config import cfg
 
@@ -25,6 +26,11 @@ LINUX_HOME = cfg.get("linux_home_root", "")
 AF3_DIR = Path(str(cfg.get("af3_dir", f"{LINUX_HOME}/Repositories/alphafold")))
 AF_INPUT_DIR = Path(str(cfg.get("af3_input_dir", str(AF3_DIR / "af_input"))))
 AF_OUTPUT_DIR = Path(str(cfg.get("af3_output_dir", str(AF3_DIR / "af_output"))))
+
+APP_TZ = ZoneInfo(cfg.get("timezone", "America/Los_Angeles"))
+
+def now_local() -> datetime:
+    return datetime.now(APP_TZ)
 
 def safe_read_json(path: Path, default=None):
     if not path.exists():
@@ -110,7 +116,7 @@ def run(job_dir: str | Path, model_path: str | Path = None, meta: dict | None = 
     sys_info = {
         "gpu": get_gpu_name(),
         "os": platform.platform(),
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "timestamp": now_local().isoformat(timespec="seconds"),
     }
 
     ligand_block = {}

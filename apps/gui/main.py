@@ -86,6 +86,7 @@ def main():
     app.setStyle("Fusion") 
 
     app.setFont(QFont("Arial", 10))
+    apply_stylesheet(app, theme="dark_white.xml")
 
     from main_window import MainWindow
 
