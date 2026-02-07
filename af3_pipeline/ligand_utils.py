@@ -42,7 +42,7 @@ from .cache_utils import compute_hash, get_cache_dir
 # =========================================
 # 🧾 Defaults (config-driven)
 # =========================================
-LIGAND_BASENAME = str(cfg.get("ligand_basename", "LIGAND"))
+LIGAND_BASENAME = str(cfg.get("ligand_basename", "LIG"))
 LIGAND_NAME_DEFAULT = str(cfg.get("ligand_name_default", "LIG"))
 LIGAND_PNG_SIZE = tuple(cfg.get("ligand_png_size", (420, 320)))
 
@@ -380,6 +380,7 @@ def prepare_ligand_from_smiles(
     ligand_hash = compute_hash(smiles)   # or compute_hash(canonical_smiles)
     cache_dir = get_cache_dir("ligands", ligand_hash)
     cache_dir.mkdir(parents=True, exist_ok=True)
+    print(LIGAND_BASENAME)
     pdb_path = cache_dir / f"{LIGAND_BASENAME}.pdb"
     cif_path = cache_dir / f"{LIGAND_BASENAME}.cif"
     sdf_path = cache_dir / f"{LIGAND_BASENAME}.sdf"

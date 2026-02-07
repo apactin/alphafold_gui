@@ -214,16 +214,16 @@ def _canonical_smiles_for_cache(smiles: str) -> str:
 
 def get_cached_ligand_cif(smiles: str) -> Optional[str]:
     key = compute_hash(_canonical_smiles_for_cache(smiles))
-    if exists_in_cache("ligands", key, "ligand.cif"):
-        return load_from_cache("ligands", key, "ligand.cif")  # type: ignore[return-value]
-    if exists_in_cache("ligands", key, "LIGAND.cif"):
-        return load_from_cache("ligands", key, "LIGAND.cif")  # type: ignore[return-value]
+    if exists_in_cache("ligands", key, "lig.cif"):
+        return load_from_cache("ligands", key, "lig.cif")  # type: ignore[return-value]
+    if exists_in_cache("ligands", key, "LIG.cif"):
+        return load_from_cache("ligands", key, "LIG.cif")  # type: ignore[return-value]
     return None
 
 
 def save_ligand_cif_cache(smiles: str, cif_data: str) -> Path:
     key = compute_hash(smiles)
-    return save_to_cache("ligands", key, "ligand.cif", cif_data)
+    return save_to_cache("ligands", key, "lig.cif", cif_data)
 
 
 def get_cached_template(pdb_id: str):

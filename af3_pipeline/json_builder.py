@@ -122,36 +122,32 @@ def _build_modifications(mod_type_ccd: str, pos: str, mode: str = "protein"):
         return [{"modificationType": mod_type_ccd, "basePosition": pos_int}]
 
 
-def _legacy_wsl_paths():
+def _wsl_paths_from_cfg():
     """
-    Reconstruct your existing AF_INPUT/AF_OUTPUT POSIX and UNC paths.
-    Used only when backend_mode is wsl_legacy.
+    Single source of truth for WSL paths.
+    Must match runner.py (_get_linux_paths).
+    Returns:
+      distro, af_in_posix, af_out_posix, af_in_unc, af_out_unc
     """
-    # Prefer new nested key if present, otherwise fall back to old flat keys
-    wsl_cfg = cfg.get("wsl_legacy", {}) or {}
-    distro = wsl_cfg.get("wsl_distro") or cfg.get("wsl_distro", "Ubuntu-22.04")
-    base_linux = wsl_cfg.get("af3_dir") or cfg.get("af3_dir", "")
-    base_linux = str(base_linux).replace("\\", "/").rstrip("/")
+    distro = cfg.get("wsl_distro", "Ubuntu-22.04")
 
-    af_in_posix = PurePosixPath(f"{base_linux}/af_input")
-    af_out_posix = PurePosixPath(f"{base_linux}/af_output")
+    base = str(cfg.get("af3_dir", "") or "").replace("\\", "/").rstrip("/")
+    af_in  = str(cfg.get("af3_input_dir",  f"{base}/af_input")).replace("\\", "/").rstrip("/")
+    af_out = str(cfg.get("af3_output_dir", f"{base}/af_output")).replace("\\", "/").rstrip("/")
 
-    af_in_unc = Path(rf"\\wsl.localhost\{distro}" + str(af_in_posix).replace("/", "\\"))
+    af_in_posix = PurePosixPath(af_in)
+    af_out_posix = PurePosixPath(af_out)
+
+    af_in_unc  = Path(rf"\\wsl.localhost\{distro}" + str(af_in_posix).replace("/", "\\"))
     af_out_unc = Path(rf"\\wsl.localhost\{distro}" + str(af_out_posix).replace("/", "\\"))
 
-    return distro, base_linux, af_in_posix, af_out_posix, af_in_unc, af_out_unc
+    return distro, af_in_posix, af_out_posix, af_in_unc, af_out_unc
 
 
 # =========================
 # 🧾 Metadata writer for post-AF3
 # =========================
-def _write_job_metadata(job_root: Path, ligand: dict):
-    """
-    Cache ligand + linkage info for downstream analysis.
-
-    Portable: written to workspace/jobs/<job>/job_metadata.json
-    Legacy: written to WSL output folder like before (caller passes that dir)
-    """
+def _write_job_metadata(job_root: Path, ligand: dict, jobname: str):
     meta = {
         "smiles": ligand.get("smiles", ""),
         "covalent": bool(ligand.get("covalent", False)),
@@ -163,10 +159,11 @@ def _write_job_metadata(job_root: Path, ligand: dict):
         "cofactors": ligand.get("cofactors", ""),
         "modelSeeds": ligand.get("modelSeeds", None),
     }
-    out = job_root / "job_metadata.json"
+    out = job_root / f"{jobname}_job_metadata.json"
     out.write_text(json.dumps(meta, indent=2), encoding="utf-8")
     _emit(f"🧾 Wrote metadata → {out}")
     return out
+
 
 
 # =========================
@@ -183,7 +180,7 @@ def build_input(jobname, proteins, rna, dna, ligand):
     if not jobname:
         raise ValueError("Job name is empty after sanitization")
 
-    distro, base_linux, AF_INPUT_POSIX, AF_OUTPUT_POSIX, AF_INPUT_UNC, AF_OUTPUT_UNC = _legacy_wsl_paths()
+    distro, AF_INPUT_POSIX, AF_OUTPUT_POSIX, AF_INPUT_UNC, AF_OUTPUT_UNC = _wsl_paths_from_cfg()
 
     # Create directories in Linux filesystem (via wsl mkdir) + ensure visible via UNC
     os.system(f"wsl mkdir -p {AF_INPUT_POSIX}")
@@ -193,10 +190,6 @@ def build_input(jobname, proteins, rna, dna, ligand):
 
     json_path_unc = AF_INPUT_UNC / f"{jobname}_fold_input.json"
     json_return = str(AF_INPUT_POSIX / f"{jobname}_fold_input.json")
-
-    # Legacy: output folder under WSL
-    job_out_dir = AF_OUTPUT_UNC / jobname
-    job_out_dir.mkdir(parents=True, exist_ok=True)
 
     sequences = []
     chain_ids = iter("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -368,7 +361,9 @@ def build_input(jobname, proteins, rna, dna, ligand):
     # --------------------------------
     # 🧾 Write metadata for post-AF3
     # --------------------------------
-    _write_job_metadata(job_out_dir, ligand)
+    metadata_out = AF_OUTPUT_UNC / jobname
+    metadata_out.mkdir(parents=True, exist_ok=True)
+    _write_job_metadata(metadata_out, ligand, jobname)
 
     # In portable mode we return the Windows path to the JSON file.
     # In legacy mode we return the Linux posix path (as before) so your legacy runner can use it.

@@ -110,7 +110,7 @@ def main():
     }
     """)
 
-    ico = QIcon(str(resource_path("assets/custom_icon_2.ico")))
+    ico = QIcon(str(resource_path("assets/alphafold_blue_white.ico")))
     app.setWindowIcon(ico)
 
     app.setFont(QFont("Arial", 10))

@@ -7,8 +7,20 @@
     <x>0</x>
     <y>0</y>
     <width>1400</width>
-    <height>1130</height>
+    <height>1235</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>100</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1400</width>
+    <height>16777215</height>
+   </size>
   </property>
   <property name="font">
    <font>
@@ -78,7 +90,7 @@
          </property>
          <item>
           <property name="text">
-           <string>INTRO</string>
+           <string>WELCOME</string>
           </property>
           <property name="font">
            <font>
@@ -89,7 +101,7 @@
          </item>
          <item>
           <property name="text">
-           <string>SEQUENCES</string>
+           <string>MACROMOLECULES</string>
           </property>
           <property name="font">
            <font>
@@ -120,6 +132,16 @@
          <item>
           <property name="text">
            <string>RUNS</string>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>EXPLANATION</string>
           </property>
           <property name="font">
            <font>
@@ -226,7 +248,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="pageIntro">
        <layout class="QVBoxLayout" name="introPageLayout">
@@ -276,7 +298,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Macromolecules&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Save a macromolecule's sequence on the &amp;quot;SEQUENCES&amp;quot; page, and then select it on the &amp;quot;ALPHAFOLD&amp;quot; page. Optionally, supply a template PDB ID (e.g. &amp;quot;8S7G&amp;quot;) that will be used to aid AlphaFold3's prediction.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Save a macromolecule's sequence on the &amp;quot;MACROMOLECULES&amp;quot; page, and then select it on the &amp;quot;ALPHAFOLD&amp;quot; page. Optionally, supply a template PDB ID (e.g. &amp;quot;8S7G&amp;quot;) that will be used to aid AlphaFold3's prediction.&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Ligands&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
@@ -284,15 +306,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;PTMS/Ions/Cofactors&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;PTMs, ions, and cofactors are all indicated by Chemical Component Dictionary (CCD) codes. The prepopulated lists in the gui are comprehensive, but not complete. If your desired ion or cofactor is not in the list, look up its CCD code and supply it in the text box.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;PTMs, ions, and cofactors are all indicated by Chemical Component Dictionary (CCD) codes. The prepopulated lists in the GUI are comprehensive, but not complete. If your desired ion or cofactor is not in the list, look up its CCD code and supply it in the text box.&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Running/Post-Analysis&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Queue or run jobs manually. Previous jobs can be viewed and re-ran from the &amp;quot;RUNS&amp;quot; page. Optionally, check boxes for post-analysis with Rosetta&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;By default, the GUI will run RosettaRelax and RosettaLigand Docking immediately after an AlphaFold job completes. This can be toggled, and in addition the user can indicate to run this post-analysis on the top scoring model of each seed.&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Rosetta Post-Analysis&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt; text-decoration: underline;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Run energy minimization of the AlphaFold3 output. The protein-ligand bond is broken, and the ligand is constrained. This results in refinement of bond geometry and supplies a 'score' which can be used to assess the model. Realistically, the score should only be used to make comparisons between two models of the same complex.  &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;INTERPRETING RESULTS&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
           <property name="openExternalLinks">
            <bool>true</bool>
@@ -379,6 +403,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </widget>
              </item>
              <item>
+              <widget class="QLineEdit" name="proteinTemplate">
+               <property name="maximumSize">
+                <size>
+                 <width>100</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="placeholderText">
+                <string>PDB template</string>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QPushButton" name="proteinSeqSaveButton">
                <property name="text">
                 <string>✅ Save</string>
@@ -429,6 +466,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </widget>
              </item>
              <item>
+              <widget class="QLineEdit" name="dnaTemplate">
+               <property name="maximumSize">
+                <size>
+                 <width>100</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="placeholderText">
+                <string>PDB template</string>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QPushButton" name="dnaSeqSaveButton">
                <property name="text">
                 <string>✅ Save</string>
@@ -475,6 +525,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <widget class="QLineEdit" name="rnaSeqName">
                <property name="placeholderText">
                 <string>Name</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="rnaTemplate">
+               <property name="maximumSize">
+                <size>
+                 <width>100</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="placeholderText">
+                <string>PDB template</string>
                </property>
               </widget>
              </item>
@@ -795,7 +858,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                     <x>0</x>
                     <y>0</y>
                     <width>936</width>
-                    <height>183</height>
+                    <height>283</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="proteinsContainerLayout">
@@ -851,8 +914,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>936</width>
-                    <height>183</height>
+                    <width>247</width>
+                    <height>33</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="dnaContainerLayout">
@@ -908,8 +971,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>936</width>
-                    <height>183</height>
+                    <width>247</width>
+                    <height>33</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="rnaContainerLayout">
@@ -1108,6 +1171,43 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </layout>
            </item>
            <item>
+            <layout class="QHBoxLayout" name="analysisOptionsRow">
+             <item>
+              <widget class="QCheckBox" name="skipRosettaCheckbox">
+               <property name="text">
+                <string>Skip Rosetta analysis</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="multiSeedCheckbox">
+               <property name="text">
+                <string>Multi-seed analysis (top model per seed)</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="analysisOptionsSpacer">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </item>
+           <item>
             <layout class="QHBoxLayout" name="runButtonsRow">
              <item>
               <widget class="QPushButton" name="runButton">
@@ -1240,60 +1340,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </layout>
          </widget>
         </item>
-        <item>
-         <widget class="QGroupBox" name="postAnalysisGroup">
-          <property name="title">
-           <string>Post-AF3 Analysis</string>
-          </property>
-          <layout class="QVBoxLayout" name="postAnalysisLayout">
-           <item>
-            <widget class="QCheckBox" name="autoAnalyzeCheckbox">
-             <property name="text">
-              <string>Automatically run analysis after AF3 job completes</string>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="multiSeedCheckbox">
-             <property name="text">
-              <string>Run analysis on the top scoring model for each seed</string>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_2">
-             <property name="text">
-              <string>Manual run:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="postAnalysisRow1">
-             <item>
-              <widget class="QLineEdit" name="rosettaPath">
-               <property name="placeholderText">
-                <string>Job folder name (e.g. FBXO22_C326_G-6599_SKP1_20260203_232643)</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="rosettaButton">
-               <property name="text">
-                <string>▶ Run Analysis</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="pageRuns">
@@ -1310,7 +1356,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
            </font>
           </property>
           <property name="text">
-           <string>Runs History</string>
+           <string>Post-Analysis</string>
           </property>
          </widget>
         </item>
@@ -1323,57 +1369,88 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <layout class="QVBoxLayout" name="runsListLayout">
              <item>
-              <widget class="QListWidget" name="runsList"/>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QGroupBox" name="runDetailsGroup">
-            <property name="title">
-             <string>Details</string>
-            </property>
-            <layout class="QVBoxLayout" name="runDetailsLayout">
-             <item>
-              <widget class="QPlainTextEdit" name="runDetailsText">
-               <property name="readOnly">
-                <bool>true</bool>
-               </property>
-               <property name="placeholderText">
-                <string>Select a run to view details…</string>
+              <widget class="QListWidget" name="runsList">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>250</height>
+                </size>
                </property>
               </widget>
              </item>
              <item>
-              <layout class="QHBoxLayout" name="runDetailsButtonsRow">
-               <item>
-                <widget class="QPushButton" name="runsOpenOutputButton">
-                 <property name="text">
-                  <string>Open Output Directory</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="runsLoadToAlphafoldButton">
-                 <property name="text">
-                  <string>↩ Load into Alphafold</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="runDetailsButtonsSpacer">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
+              <widget class="QGroupBox" name="runDetailsGroup">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>850</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Details</string>
+               </property>
+               <layout class="QVBoxLayout" name="runDetailsLayout">
+                <item>
+                 <widget class="QTextBrowser" name="runDetailsText"/>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="runDetailsButtonsRow">
+                  <item>
+                   <widget class="QPushButton" name="runsLoadToAlphafoldButton">
+                    <property name="text">
+                     <string>↩ Load into Alphafold</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="runsOpenSelectedButton">
+                    <property name="text">
+                     <string>📂 Open Selected Run</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="runsOpenOutputButton">
+                    <property name="text">
+                     <string>Open Output Directory</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="runsMultiSeedCheckbox">
+                    <property name="text">
+                     <string>Multi-seed</string>
+                    </property>
+                    <property name="checked">
+                     <bool>false</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="runsAnalyzeButton">
+                    <property name="text">
+                     <string>🧠 Run Analysis</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="runsOpenRelaxButton">
+                    <property name="text">
+                     <string>🧬 Open Relax Dir</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="runsOpenMetricsButton">
+                    <property name="text">
+                     <string>📊 Open Metrics CSV</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -1381,6 +1458,67 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </item>
        </layout>
+      </widget>
+      <widget class="QWidget" name="pageAbout">
+       <widget class="QLabel" name="aboutLabel">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>20</y>
+          <width>971</width>
+          <height>41</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Arial Black</family>
+          <pointsize>20</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>Explanation</string>
+        </property>
+       </widget>
+       <widget class="QTextBrowser" name="aboutText">
+        <property name="geometry">
+         <rect>
+          <x>15</x>
+          <y>71</y>
+          <width>981</width>
+          <height>1031</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Arial</family>
+          <pointsize>14</pointsize>
+         </font>
+        </property>
+        <property name="html">
+         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Arial'; font-size:14pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This page gives a step-by-step of what happens behind the scenes.&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Protein sequence input&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;-&amp;gt; Multi Sequence Alignment (MSA&lt;span style=&quot; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a; background-color:#ffffff;&quot;&gt;) to the UniRef30 database (contains all sequences clustered at 30% sequence similiarity). This uses MMSeqs2, an open-source software designed for ultra-fast searching and clustering.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Ligand SMILES input&lt;/span&gt; &lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;-&amp;gt; embed many (default is 200&lt;span style=&quot; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a; background-color:#ffffff;&quot;&gt;) conformers using RDKit, and pick the one with the lowest energy for further energy minimization. Save the minimized conformer to cache, and convert to AlphaFold-ready format.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;AlphaFold3&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;-&amp;gt; A single file containing sequences (MSA&lt;span style=&quot; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a; background-color:#ffffff;&quot;&gt;), 3D ligand coordinates, and other run information such as templates, PTMs, ions/cofactors is supplied to AlphaFold3 (AF3).&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;AF3 is a machine learning model that was trained on all PDB structures deposited before September 30, 2021. Each &amp;quot;seed&amp;quot; is a random starting point for the prediction. From this starting point, AF3 makes five total predictions (these get called &amp;quot;samples&amp;quot;&lt;span style=&quot; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a; background-color:#ffffff;&quot;&gt;). In general, if using a PDB template, only one seed is needed. If no template is available, and few sequences are returned from MSA, then the prediction may benefit from multiple seeds.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'IBM Plex Sans','Helvetica','Arial','sans-serif'; font-size:21px; font-weight:500; color:#1a1c1a;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+       </widget>
       </widget>
       <widget class="QWidget" name="pageConfig">
        <layout class="QVBoxLayout" name="configPageLayout">
@@ -1413,9 +1551,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="0" column="2">
-            <widget class="QLineEdit" name="cfgWslDistro"/>
-           </item>
            <item row="1" column="0">
             <widget class="QLabel" name="cfgLinuxHomeRootLabel">
              <property name="text">
@@ -1426,6 +1561,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <item row="1" column="2">
             <widget class="QLineEdit" name="cfgLinuxHomeRoot"/>
            </item>
+           <item row="0" column="2">
+            <widget class="QLineEdit" name="cfgWslDistro"/>
+           </item>
+           <item row="0" column="3">
+            <widget class="QToolButton" name="helpCfgWslDistro">
+             <property name="cursor">
+              <cursorShape>PointingHandCursor</cursorShape>
+             </property>
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>18</width>
+               <height>18</height>
+              </size>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QToolButton" name="helpLinuxHome">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
@@ -1435,6 +1602,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <string>GUI paths</string>
           </property>
           <layout class="QGridLayout" name="guiPathsLayout">
+           <property name="topMargin">
+            <number>4</number>
+           </property>
            <item row="0" column="0">
             <widget class="QLabel" name="cfgGuiDirLabel">
              <property name="text">
@@ -1445,6 +1615,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <item row="0" column="2">
             <widget class="QLineEdit" name="cfgGuiDir"/>
            </item>
+           <item row="0" column="3">
+            <widget class="QToolButton" name="helpGUIDir">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
@@ -1454,16 +1634,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <string>Directories</string>
           </property>
           <layout class="QGridLayout" name="pathsLayout">
-           <item row="5" column="0">
-            <widget class="QLabel" name="cfgMMseqsDBLabel">
-             <property name="text">
-              <string>MMseqs2 DB:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="2">
-            <widget class="QLineEdit" name="cfgRosettaRelaxBin"/>
-           </item>
            <item row="4" column="0">
             <widget class="QLabel" name="cfgRosettaRelaxBinLabel">
              <property name="text">
@@ -1471,8 +1641,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
+           <item row="4" column="2">
+            <widget class="QLineEdit" name="cfgRosettaRelaxBin"/>
+           </item>
            <item row="5" column="2">
             <widget class="QLineEdit" name="cfgMMseqsDB"/>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="cfgMMseqsDBLabel">
+             <property name="text">
+              <string>MMseqs2 DB:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="3">
+            <widget class="QToolButton" name="helpRosettaDir">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="3">
+            <widget class="QToolButton" name="helpMMseqsDir">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
            </item>
           </layout>
          </widget>
@@ -1483,6 +1683,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <string>AF3 + Docker</string>
           </property>
           <layout class="QGridLayout" name="af3DockerLayout">
+           <item row="0" column="2">
+            <widget class="QLineEdit" name="cfgAf3Dir"/>
+           </item>
+           <item row="2" column="2">
+            <widget class="QLineEdit" name="cfgDockerImage"/>
+           </item>
            <item row="0" column="0">
             <widget class="QLabel" name="cfgAf3DirLabel">
              <property name="text">
@@ -1490,8 +1696,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="0" column="2">
-            <widget class="QLineEdit" name="cfgAf3Dir"/>
+           <item row="2" column="0">
+            <widget class="QLabel" name="cfgDockerImageLabel">
+             <property name="text">
+              <string>alphafold_docker_image:</string>
+             </property>
+            </widget>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="cfgDockerBinLabel">
@@ -1503,15 +1713,35 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <item row="1" column="2">
             <widget class="QLineEdit" name="cfgDockerBin"/>
            </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="cfgDockerImageLabel">
+           <item row="0" column="3">
+            <widget class="QToolButton" name="helpAF3Dir">
              <property name="text">
-              <string>alphafold_docker_image:</string>
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
-           <item row="2" column="2">
-            <widget class="QLineEdit" name="cfgDockerImage"/>
+           <item row="1" column="3">
+            <widget class="QToolButton" name="helpDockerBin">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="3">
+            <widget class="QToolButton" name="helpAFImage">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
            </item>
           </layout>
          </widget>
@@ -1523,17 +1753,111 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </property>
           <layout class="QVBoxLayout" name="dockerEnvLayout">
            <item>
-            <widget class="QPlainTextEdit" name="cfgDockerEnv">
-             <property name="placeholderText">
-              <string>XLA_PYTHON_CLIENT_PREALLOCATE: &quot;false&quot;
+            <layout class="QHBoxLayout" name="horizontalLayout">
+             <item>
+              <widget class="QPlainTextEdit" name="cfgDockerEnv">
+               <property name="minimumSize">
+                <size>
+                 <width>100</width>
+                 <height>50</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>962</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="placeholderText">
+                <string>XLA_PYTHON_CLIENT_PREALLOCATE: &quot;false&quot;
           XLA_CLIENT_MEM_FRACTION: &quot;.50&quot;
           XLA_PYTHON_CLIENT_ALLOCATOR: platform
           TF_FORCE_UNIFIED_MEMORY: &quot;1&quot;
           TF_FORCE_GPU_ALLOW_GROWTH: &quot;true&quot;</string>
-             </property>
-            </widget>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="helpDockerEnv">
+               <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+               </property>
+               <property name="text">
+                <string>❔</string>
+               </property>
+               <property name="autoRaise">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
           </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="viewerPathGroup">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>115</height>
+           </size>
+          </property>
+          <property name="title">
+           <string>ChimeraX/Pymol Paths</string>
+          </property>
+          <widget class="QWidget" name="gridLayoutWidget">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>20</y>
+             <width>961</width>
+             <height>80</height>
+            </rect>
+           </property>
+           <layout class="QGridLayout" name="gridLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="cfgChimeraLabel">
+              <property name="text">
+               <string>ChimeraX:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QLineEdit" name="cfgChimeraPath"/>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="cfgPyMolLabel">
+              <property name="text">
+               <string>PyMol</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <widget class="QLineEdit" name="cfgPyMolPath"/>
+            </item>
+            <item row="0" column="3">
+             <widget class="QToolButton" name="helpChimera">
+              <property name="text">
+               <string>❔</string>
+              </property>
+              <property name="autoRaise">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="3">
+             <widget class="QToolButton" name="helpPyMol">
+              <property name="text">
+               <string>❔</string>
+              </property>
+              <property name="autoRaise">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
          </widget>
         </item>
         <item>
@@ -1542,13 +1866,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <string>MSA (MMseqs)</string>
           </property>
           <layout class="QGridLayout" name="msaLayout">
-           <item row="0" column="0">
-            <widget class="QLabel" name="cfgMsaThreadsLabel">
-             <property name="text">
-              <string>Threads:</string>
-             </property>
-            </widget>
-           </item>
            <item row="0" column="2">
             <widget class="QSpinBox" name="cfgMsaThreads">
              <property name="minimum">
@@ -1559,10 +1876,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="cfgMsaSensitivityLabel">
+           <item row="2" column="2">
+            <widget class="QSpinBox" name="cfgMsaMaxSeqs">
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>200000</number>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="cfgMsaThreadsLabel">
              <property name="text">
-              <string>Sensitivity:</string>
+              <string>Threads:</string>
              </property>
             </widget>
            </item>
@@ -1582,6 +1909,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="cfgMsaSensitivityLabel">
+             <property name="text">
+              <string>Sensitivity:</string>
+             </property>
+            </widget>
+           </item>
            <item row="2" column="0">
             <widget class="QLabel" name="cfgMsaMaxSeqsLabel">
              <property name="text">
@@ -1589,13 +1923,33 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="2" column="2">
-            <widget class="QSpinBox" name="cfgMsaMaxSeqs">
-             <property name="minimum">
-              <number>1</number>
+           <item row="0" column="3">
+            <widget class="QToolButton" name="helpMMseqsThreads">
+             <property name="text">
+              <string>❔</string>
              </property>
-             <property name="maximum">
-              <number>200000</number>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QToolButton" name="helpMMseqsSensitivity">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="3">
+            <widget class="QToolButton" name="helpMMseqsMaxSequences">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
@@ -1608,10 +1962,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <string>Ligand</string>
           </property>
           <layout class="QGridLayout" name="ligandLayout">
-           <item row="0" column="0">
-            <widget class="QLabel" name="cfgLigandNConfsLabel">
-             <property name="text">
-              <string>n_confs:</string>
+           <item row="6" column="2">
+            <widget class="QLineEdit" name="cfgLigandNameDefault"/>
+           </item>
+           <item row="4" column="2">
+            <widget class="QCheckBox" name="cfgLigandRequireStereo"/>
+           </item>
+           <item row="8" column="2">
+            <widget class="QSpinBox" name="cfgLigandRdkitThreads">
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>256</number>
              </property>
             </widget>
            </item>
@@ -1625,10 +1988,51 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="cfgLigandSeedLabel">
+           <item row="8" column="0">
+            <widget class="QLabel" name="cfgLigandRdkitThreadsLabel">
              <property name="text">
-              <string>seed:</string>
+              <string>rdkit_threads:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="cfgLigandNameDefaultLabel">
+             <property name="text">
+              <string>name_default:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="cfgLigandKeepChargeLabel">
+             <property name="text">
+              <string>keep_charge:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="cfgLigandPruneRmsLabel">
+             <property name="text">
+              <string>prune_rms:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="2">
+            <widget class="QCheckBox" name="cfgLigandKeepCharge"/>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="cfgLigandRequireStereoLabel">
+             <property name="text">
+              <string>require_assigned_stereo:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QLineEdit" name="cfgLigandBasename"/>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="cfgLigandPngSizeLabel">
+             <property name="text">
+              <string>png_size (W,H):</string>
              </property>
             </widget>
            </item>
@@ -1642,10 +2046,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="cfgLigandPruneRmsLabel">
+           <item row="1" column="0">
+            <widget class="QLabel" name="cfgLigandSeedLabel">
              <property name="text">
-              <string>prune_rms:</string>
+              <string>seed:</string>
              </property>
             </widget>
            </item>
@@ -1665,50 +2069,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </property>
             </widget>
            </item>
-           <item row="3" column="0">
-            <widget class="QLabel" name="cfgLigandKeepChargeLabel">
-             <property name="text">
-              <string>keep_charge:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="2">
-            <widget class="QCheckBox" name="cfgLigandKeepCharge"/>
-           </item>
-           <item row="4" column="0">
-            <widget class="QLabel" name="cfgLigandRequireStereoLabel">
-             <property name="text">
-              <string>require_assigned_stereo:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="2">
-            <widget class="QCheckBox" name="cfgLigandRequireStereo"/>
-           </item>
            <item row="5" column="0">
             <widget class="QLabel" name="cfgLigandBasenameLabel">
              <property name="text">
               <string>basename:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="2">
-            <widget class="QLineEdit" name="cfgLigandBasename"/>
-           </item>
-           <item row="6" column="0">
-            <widget class="QLabel" name="cfgLigandNameDefaultLabel">
-             <property name="text">
-              <string>name_default:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="6" column="2">
-            <widget class="QLineEdit" name="cfgLigandNameDefault"/>
-           </item>
-           <item row="7" column="0">
-            <widget class="QLabel" name="cfgLigandPngSizeLabel">
-             <property name="text">
-              <string>png_size (W,H):</string>
              </property>
             </widget>
            </item>
@@ -1736,20 +2100,100 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </item>
             </layout>
            </item>
-           <item row="8" column="0">
-            <widget class="QLabel" name="cfgLigandRdkitThreadsLabel">
+           <item row="0" column="0">
+            <widget class="QLabel" name="cfgLigandNConfsLabel">
              <property name="text">
-              <string>rdkit_threads:</string>
+              <string>n_confs:</string>
              </property>
             </widget>
            </item>
-           <item row="8" column="2">
-            <widget class="QSpinBox" name="cfgLigandRdkitThreads">
-             <property name="minimum">
-              <number>0</number>
+           <item row="0" column="3">
+            <widget class="QToolButton" name="helpNConfs">
+             <property name="text">
+              <string>❔</string>
              </property>
-             <property name="maximum">
-              <number>256</number>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QToolButton" name="helpSeed">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="3">
+            <widget class="QToolButton" name="helpPruneRMS">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="3">
+            <widget class="QToolButton" name="helpKeepCharge">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="3">
+            <widget class="QToolButton" name="helpRequireStereo">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="3">
+            <widget class="QToolButton" name="helpBasename">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="3">
+            <widget class="QToolButton" name="helpNameDefault">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="3">
+            <widget class="QToolButton" name="helpPNGSize">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="3">
+            <widget class="QToolButton" name="helpRDKitThreads">
+             <property name="text">
+              <string>❔</string>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
              </property>
             </widget>
            </item>

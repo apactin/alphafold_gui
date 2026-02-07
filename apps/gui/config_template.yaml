@@ -86,7 +86,7 @@ ligand:
   require_assigned_stereo: true
 
   # Output basename for ligand files (PDB/CIF/PNG)
-  basename: LIGAND
+  basename: LIG
 
   # Default 3-letter ligand name if none is provided
   name_default: LIG
@@ -104,3 +104,6 @@ ligand:
 # -------------------------
 # Example: /home/<you>/rosetta/rosetta_bin_linux_2021.16.61629_bundle
 rosetta_relax_bin: ""
+
+chimera_path: ""
+pymol_path: ""

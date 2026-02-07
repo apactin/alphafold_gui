@@ -143,6 +143,10 @@ LEGACY_KEY_MAP: Dict[str, str] = {
 
     # --- Rosetta ---
     "rosetta_bin": "rosetta_relax_bin",
+
+    #structure viewing
+    "chimera": "chimera_path",
+    "pymol": "pymol_path",
 }
 
 
@@ -155,9 +159,19 @@ class ConfigPaths:
 class Config:
     def __init__(self):
         repo_path = Path(__file__).resolve().parents[1]
+        home = Path.home()
+        profile = (os.environ.get("AF3_USER") or home.name).strip()
+        profile = profile[:1].upper() + profile[1:]
+
         self.paths = ConfigPaths(
-            local_cfg=repo_path / "config.yaml",
-            user_cfg=Path.home() / ".af3_pipeline" / "config.yaml",
+            local_cfg = repo_path / "config.yaml",
+            user_cfg = (
+                home
+                / ".af3_pipeline"
+                / "users"
+                / profile
+                / "config.yaml"
+            ),
         )
 
         self.path: Optional[Path] = None
@@ -171,19 +185,24 @@ class Config:
     # ---------- path selection ----------
     def _candidate_paths(self) -> list[Path]:
         """
-        Profile-aware: AF3_PIPELINE_CONFIG (if set) wins.
-        Otherwise: repo-local preferred, then user config.
+        Priority:
+        1) AF3_PIPELINE_CONFIG (explicit override)
+        2) per-user profile config
+        3) repo config (dev fallback)
         """
         env = (os.environ.get("AF3_PIPELINE_CONFIG") or "").strip()
         if env:
             return [Path(env).expanduser()]
 
-        # ✅ Preferred: repo-local first (dev ergonomics)
-        return [self.paths.local_cfg, self.paths.user_cfg]
+        return [
+            self.paths.user_cfg,
+            self.paths.local_cfg,
+        ]
+
 
     def _choose_path(self) -> Optional[Path]:
         for p in self._candidate_paths():
-            if p.exists():
+            if p and p.exists():
                 return p
         return None
 

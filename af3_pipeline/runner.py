@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import shutil
 import subprocess
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -25,25 +26,7 @@ import json
 
 from af3_pipeline.config import cfg
 
-# ==============================
-# ⚙️ Config-driven paths
-# ==============================
 DISTRO_NAME = cfg.get("wsl_distro", "Ubuntu-22.04")
-
-# Canonical Linux base inside WSL (used by Docker & AF3)
-BASE_LINUX = cfg.get("af3_dir", "")
-BASE_LINUX = BASE_LINUX.replace("\\", "/").rstrip("/")
-
-# Allow explicit overrides; fall back to previous BASE_LINUX-derived defaults
-AF_INPUT_LINUX   = cfg.get("af3_input_dir", f"{BASE_LINUX}/af_input")
-AF_OUTPUT_LINUX  = cfg.get("af3_output_dir", f"{BASE_LINUX}/af_output")
-AF_WEIGHTS_LINUX = cfg.get("af3_weights_dir", f"{BASE_LINUX}/af_weights")
-AF_CODE_LINUX    = cfg.get("af3_code_dir", f"{BASE_LINUX}/alphafold3")
-
-AF_INPUT_LINUX   = str(AF_INPUT_LINUX).replace("\\", "/").rstrip("/")
-AF_OUTPUT_LINUX  = str(AF_OUTPUT_LINUX).replace("\\", "/").rstrip("/")
-AF_WEIGHTS_LINUX = str(AF_WEIGHTS_LINUX).replace("\\", "/").rstrip("/")
-AF_CODE_LINUX    = str(AF_CODE_LINUX).replace("\\", "/").rstrip("/")
 
 # ==============================
 # 🐳 Docker config
@@ -84,32 +67,53 @@ def copy_af3_outputs_to_jobs_root(*, job_dir: Path, job_name: str) -> Path:
 
     return dest_dir
 
+def _get_linux_paths():
+    distro = cfg.get("wsl_distro", "Ubuntu-22.04")
+
+    base = (cfg.get("af3_dir", "") or "").replace("\\", "/").rstrip("/")
+    af_input   = str(cfg.get("af3_input_dir",   f"{base}/af_input")).replace("\\","/").rstrip("/")
+    af_output  = str(cfg.get("af3_output_dir",  f"{base}/af_output")).replace("\\","/").rstrip("/")
+    af_weights = str(cfg.get("af3_weights_dir", f"{base}/af_weights")).replace("\\","/").rstrip("/")
+    af_code    = str(cfg.get("af3_code_dir",    f"{base}/alphafold3")).replace("\\","/").rstrip("/")
+
+    return distro, base, af_input, af_output, af_weights, af_code
+
+def linux_to_unc(linux_path: str) -> Path:
+    distro, *_ = _get_linux_paths()
+    lp = (linux_path or "").replace("\\", "/").strip()
+    if not lp.startswith("/"):
+        lp = "/" + lp
+    win_tail = lp.lstrip("/").replace("/", "\\")
+    return Path(f"\\\\wsl.localhost\\{distro}\\{win_tail}")
+
+
 # ==============================
 # ✅ WSL UNC Path Utility (Windows ↔ WSL)
 # ==============================
 def wsl_path(subpath: str) -> Path:
-    # Normalize the subpath to forward slashes without leading slash
+    distro, base_linux, *_ = _get_linux_paths()
     sub = (subpath or "").replace("\\", "/").lstrip("/")
-
-    base_win = BASE_LINUX.replace("/", "\\")
-    full = f"\\\\wsl.localhost\\{DISTRO_NAME}{base_win}"
+    base_win = base_linux.replace("/", "\\")
+    full = f"\\\\wsl.localhost\\{distro}{base_win}"
     if sub:
         full += "\\" + sub.replace("/", "\\")
-
-    # Ensure the UNC path starts with exactly two backslashes
     if not full.startswith("\\\\"):
         full = "\\" + full
-
     return Path(full)
-
-# Windows-visible paths to AF input/output on WSL
-AF_INPUT_DIR  = wsl_path("af_input")
-AF_OUTPUT_DIR = wsl_path("af_output")
 
 # Ensure these UNC dirs exist from Windows side
 def ensure_dirs():
-    for d in [AF_INPUT_DIR, AF_OUTPUT_DIR]:
-        d.mkdir(parents=True, exist_ok=True)
+    # Make sure WSL dirs exist (via WSL) rather than relying on UNC mkdir
+    distro, base, af_in, af_out, *_ = _get_linux_paths()
+    subprocess.run(["wsl.exe", "bash", "-lc", f"mkdir -p '{af_in}' '{af_out}'"], check=False)
+
+def _af_output_unc() -> Path:
+    _, _, _, af_out, _, _ = _get_linux_paths()
+    return linux_to_unc(af_out)
+
+def _af_input_unc() -> Path:
+    _, _, af_in, _, _, _ = _get_linux_paths()
+    return linux_to_unc(af_in)
 
 # ==============================
 # 🔑 Utility helpers
@@ -119,7 +123,10 @@ def seq_hash(name: str) -> str:
     return hashlib.sha1(name.encode()).hexdigest()[:8]
 
 def get_job_metadata(job_name: str) -> dict:
-    meta_path = AF_OUTPUT_DIR / job_name / "job_metadata.json"
+    latest = _get_most_recent_output_folder(job_name)
+    if not latest:
+        return {}
+    meta_path = latest / "job_metadata.json"
     if meta_path.exists():
         try:
             return json.loads(meta_path.read_text(encoding="utf-8"))
@@ -128,32 +135,31 @@ def get_job_metadata(job_name: str) -> dict:
     return {}
 
 def _get_most_recent_output_folder(job_name: str) -> Path | None:
-    base = AF_OUTPUT_DIR
-    candidates = [p for p in base.glob(f"{job_name}_*") if p.is_dir()]
-    if not candidates:
-        return None
-    return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)[0]
+    job = (job_name or "").replace("'", "")
+    _, _, _, af_out, _, _ = _get_linux_paths()
 
-def _copy_metadata_to_latest_output(job_name: str) -> Path | None:
-    """Copy job_metadata.json from <job> → latest timestamped AF3 folder."""
-    src_meta = AF_OUTPUT_DIR / job_name / "job_metadata.json"
-    if not src_meta.exists():
-        print(f"⚠️ No job_metadata.json found in {src_meta}")
-        return None
+    # Find dirs in af_out that start with job name, sort by mtime, return newest.
+    bash = (
+        f"find '{af_out}' -maxdepth 1 -mindepth 1 -type d -name '{job}*' "
+        r"-printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-"
+    )
 
-    dest_dir = _get_most_recent_output_folder(job_name)
-    if not dest_dir or not dest_dir.exists():
-        print(f"⚠️ No timestamped AF3 output folder found for {job_name}")
+    p = subprocess.run(["wsl.exe", "bash", "-lc", bash], capture_output=True, text=True)
+
+    if p.returncode != 0:
+        # optional debug:
+        # print("DEBUG find stderr:", p.stderr)
         return None
 
-    dst_meta = dest_dir / "job_metadata.json"
-    try:
-        shutil.copy2(src_meta, dst_meta)
-        print(f"🧩 Copied job_metadata.json → {dst_meta}")
-        return dst_meta
-    except Exception as e:
-        print(f"⚠️ Failed to copy metadata: {e}")
+    latest_linux = (p.stdout or "").strip()
+    if not latest_linux:
+        # optional debug:
+        # print("DEBUG: no match. stderr:", p.stderr)
         return None
+
+    return linux_to_unc(latest_linux)
+
+
 
 # ==============================
 # 🐳 Docker command builder
@@ -161,7 +167,6 @@ def _copy_metadata_to_latest_output(job_name: str) -> Path | None:
 def docker_cmd(container_name: str, json_linux_path: str,
                num_recycles: int = 1, seeds: int = 2,
                gpu: str = "all", extra_mounts=None):
-    import os
     uid = subprocess.check_output(["wsl", "id", "-u"]).decode().strip()
     gid = subprocess.check_output(["wsl", "id", "-g"]).decode().strip()
 
@@ -169,16 +174,18 @@ def docker_cmd(container_name: str, json_linux_path: str,
     json_filename = os.path.basename(json_linux_path)
     json_container_path = f"/work/af_input/{json_filename}"
 
+    distro, base, af_in, af_out, af_w, af_code = _get_linux_paths()
+
     cmd = [
         "wsl",
         DOCKER_BIN, "run", "-t", "--rm",
         "--name", container_name,
         f"--user={uid}:{gid}",
         "--gpus", gpu,
-        "--volume", f"{AF_INPUT_LINUX}:/work/af_input",
-        "--volume", f"{AF_OUTPUT_LINUX}:/work/af_output",
-        "--volume", f"{AF_WEIGHTS_LINUX}:/work/models",
-        "--volume", f"{AF_CODE_LINUX}:/work/alphafold3",
+        "--volume", f"{af_in}:/work/af_input",
+        "--volume", f"{af_out}:/work/af_output",
+        "--volume", f"{af_w}:/work/models",
+        "--volume", f"{af_code}:/work/alphafold3",
     ]
 
     # Config-driven env (defaults match your current hardcoded set)
@@ -208,50 +215,38 @@ def docker_cmd(container_name: str, json_linux_path: str,
 # ==============================
 def run_af3(json_path=None, job_name="GUI_job", num_recycles=1,
             seeds=2, gpu="all", extra_mounts=None, auto_analyze=False, multi_seed=False):
-    """
-    Run AlphaFold-3 in Docker and optionally post-process results.
 
-    json_path:
-      • If a Linux path (starts with "/"), it's assumed to point inside WSL at AF_INPUT_LINUX.
-      • If a UNC/Windows path, it's converted to the matching Linux path under BASE_LINUX.
-    """
-    # Normalize json_path to Linux path string for Docker
-    json_linux = None
+    distro, base, af_in, af_out, af_w, af_code = _get_linux_paths()
     ensure_dirs()
 
     if json_path is None:
-        json_linux = f"{AF_INPUT_LINUX}/{job_name}_fold_input.json"
+        json_linux = f"{af_in}/{job_name}_fold_input.json"
     else:
         if isinstance(json_path, Path):
             json_path = str(json_path)
 
         if isinstance(json_path, str) and json_path.startswith("/"):
-            # Already a Linux path (e.g. from json_builder log)
             json_linux = json_path
         else:
-            # Treat as Windows/UNC path and map into Linux space if it lives under our WSL mount
-            p = Path(json_path)
-            s = str(p)
-            # Strip UNC prefix if present
-            s_clean = s.replace(r"\\wsl.localhost\\" + DISTRO_NAME, "")
-            s_clean = s_clean.replace("\\", "/")
-            if "/home/" in s_clean:
+            s = str(Path(json_path))
+
+            m = re.match(r"^\\\\wsl\.localhost\\([^\\]+)\\(.*)$", s, flags=re.IGNORECASE)
+            if m:
+                s_clean = "/" + m.group(2).replace("\\", "/")
+            else:
+                s_clean = s.replace("\\", "/")
+
+            if s_clean.startswith("/"):
                 json_linux = s_clean
             else:
-                # Fallback: assume standard AF_INPUT layout
-                json_linux = f"{AF_INPUT_LINUX}/{job_name}_fold_input.json"
+                json_linux = f"{af_in}/{job_name}_fold_input.json"
 
     print(f"📄 Normalized JSON path for WSL: {json_linux}")
 
     # For sanity, see if the file exists via UNC path; do not block run if it's only missing from Windows view.
-    rel_under_base = json_linux.replace(BASE_LINUX + "/", "")
-    json_unc = wsl_path(rel_under_base)
+    json_unc = linux_to_unc(json_linux)
     if not json_unc.exists():
-        print(f"⚠️ Warning: JSON not visible at {json_unc} from Windows; "
-              "assuming it exists inside WSL if just written there.")
-
-    job_out = AF_OUTPUT_DIR / job_name
-    job_out.mkdir(parents=True, exist_ok=True)
+        print(f"⚠️ Warning: JSON not visible at {json_unc} from Windows; assuming it exists inside WSL if just written there.")
 
     container_name = f"af3_{seq_hash(job_name)}"
     cmd = docker_cmd(
@@ -263,10 +258,15 @@ def run_af3(json_path=None, job_name="GUI_job", num_recycles=1,
         extra_mounts=extra_mounts,
     )
 
+    distro, base, af_in, af_out, af_w, af_code = _get_linux_paths()
+    print(f"🧪 Mount check: weights host path (WSL) = {af_w}")
+    print(f"🧪 Mount check: base = {base}")
+
     print(f"🚀 Launching AF3 job '{job_name}'")
     print(f"🐳 Container: {container_name}")
     print(f"📄 Input JSON: {json_linux}")
-    print(f"📤 Output Dir: {job_out}")
+    print(f"📤 Output Dir (WSL): {af_out}")
+    print(f"📤 Output Dir (UNC): {_af_output_unc()}")
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -276,10 +276,6 @@ def run_af3(json_path=None, job_name="GUI_job", num_recycles=1,
         raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
     print(f"✅ AF3 job '{job_name}' completed successfully.")
-
-    # Copy metadata to timestamped output folder
-    _copy_metadata_to_latest_output(job_name)
-    print(f"✅ Metadata for '{job_name}' copied to most recent job folder: '{_get_most_recent_output_folder(job_name)}.")
 
     # Optional post-AF3 analysis
     if auto_analyze:
@@ -304,7 +300,7 @@ def run_af3(json_path=None, job_name="GUI_job", num_recycles=1,
                     "--job", af_out.name,
                     "--model", str(cif)]
                 if multi_seed:
-                    cmd.append("--multi_seed", multi_seed)
+                    cmd.extend(["--multi_seed", str(multi_seed)])
                 subprocess.run(cmd, check=True)
             else:
                 print(f"⚠️ Auto-analysis skipped: CIF not found ({cif})")
@@ -312,20 +308,20 @@ def run_af3(json_path=None, job_name="GUI_job", num_recycles=1,
         except Exception as e:
             print(f"⚠️ Auto-analysis failed: {e}")
     else:
-            try:
-                latest = _get_most_recent_output_folder(job_name)
-                if not latest:
-                    print(f"⚠️ No timestamped output found for {job_name}; nothing to copy.")
-                    return
+        try:
+            latest = _get_most_recent_output_folder(job_name)
+            if not latest:
+                print(f"⚠️ No timestamped output found for {job_name}; nothing to copy.4")
+                return
 
-                # Copy from the real AF3 output folder (job_name_YYYYMMDD_HHMMSS)
-                job_dir = latest.parent if latest.is_file() else latest
+            # Copy from the real AF3 output folder (job_name_YYYYMMDD_HHMMSS)
+            job_dir = latest.parent if latest.is_file() else latest
 
-                # Use the timestamped folder name so bundles match AF3 outputs
-                dest_dir = copy_af3_outputs_to_jobs_root(job_dir=job_dir, job_name=job_dir.name)
-                print(f"📦 Copied AF3 outputs → {dest_dir}")
-            except Exception as e:
-                print(f"⚠️ Copying AF3 outputs failed: {e}")
+            # Use the timestamped folder name so bundles match AF3 outputs
+            dest_dir = copy_af3_outputs_to_jobs_root(job_dir=job_dir, job_name=job_dir.name)
+            print(f"📦 Copied AF3 outputs → {dest_dir}")
+        except Exception as e:
+            print(f"⚠️ Copying AF3 outputs failed: {e}")
 
 
 # ==============================

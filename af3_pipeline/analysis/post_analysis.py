@@ -24,6 +24,7 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 SUBMODULES = {
     "build_meta":        "af3_pipeline.analysis.build_meta",
     "rosetta_minimize":  "af3_pipeline.analysis.rosetta_minimize",
+    "rosetta_ligand":    "af3_pipeline.analysis.rosetta_ligand",
     "metrics":           "af3_pipeline.analysis.metrics",
 }
 
@@ -102,12 +103,22 @@ def _ensure_callable(mod, func="run"):
 # ============================
 # 🧠 Main analysis pipeline
 # ============================
-def run_analysis(job_name: str, model_path: str | Path | None, multi_seed: bool = False, meta: dict | None = None):
+def run_analysis(job_name: str, model_path: str | Path | None, multi_seed: bool = False, meta: dict | None = None, skip_rosetta: bool = False, ):
     base_name, resolved_job_name, job_dir = _resolve_job_dir(job_name)
     bundle_dir = _bundle_dir_for_job(resolved_job_name)
 
+    try:
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        (bundle_dir / "analysis_flags.txt").write_text(
+            f"multi_seed={multi_seed}\nskip_rosetta={skip_rosetta}\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
     print(f"post analysis job dir: {job_dir}")
     job_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Skip Rosetta: {skip_rosetta}")
 
     # Normalize model_path:
     # - None / "" / whitespace => treat as not provided
@@ -141,16 +152,32 @@ def run_analysis(job_name: str, model_path: str | Path | None, multi_seed: bool 
         print("⚠️ build_meta failed, continuing …")
 
     # Step 2 — rosetta_minimize
-    try:
-        mod = _safe_import(SUBMODULES["rosetta_minimize"])
-        func = _ensure_callable(mod)
-        print("⚙️ Running Rosetta minimization …")
-        func(job_dir, multi_seed=multi_seed, model_path=mp)
-    except Exception:
-        traceback.print_exc()
-        print("⚠️ rosetta_minimize failed, continuing …")
+    if skip_rosetta:
+        print("⏭️  Skipping Rosetta minimization (--skip_rosetta).")
+    else:
+        try:
+            mod = _safe_import(SUBMODULES["rosetta_minimize"])
+            func = _ensure_callable(mod)
+            print("⚙️ Running Rosetta minimization …")
+            func(job_dir, multi_seed=multi_seed, model_path=mp)
+        except Exception:
+            traceback.print_exc()
+            print("⚠️ rosetta_minimize failed, continuing …")
 
-    # Step 3 — metrics
+    # Step 3 — rosetta_ligand
+    if skip_rosetta:
+        print("⏭️  Skipping RosettaLigand validation (--skip_rosetta).")
+    else:
+        try:
+            mod = _safe_import(SUBMODULES["rosetta_ligand"])
+            func = _ensure_callable(mod)
+            print("🧲 Running RosettaLigand validation …")
+            func(job_dir, multi_seed=multi_seed)   # it will read latest_rosetta_relax.json
+        except Exception:
+            traceback.print_exc()
+            print("⚠️ rosetta_ligand failed, continuing …")
+
+    # Step 4 — metrics
     try:
         mod = _safe_import(SUBMODULES["metrics"])
         func = _ensure_callable(mod)
@@ -177,7 +204,8 @@ if __name__ == "__main__":
     parser.add_argument("--job", required=True, help="Job name (base or timestamped)")
     parser.add_argument("--model", required=False, help="Path to model CIF/PDB (optional)")
     parser.add_argument("--multi_seed", action="store_true", help="Analyze top model per seed")
+    parser.add_argument("--skip_rosetta", action="store_true", help="Skip Rosetta minimize + RosettaLigand steps")
     args = parser.parse_args()
 
     # Let run_analysis resolve job_dir and default model correctly.
-    run_analysis(args.job, args.model, args.multi_seed)
+    run_analysis(args.job, args.model, args.multi_seed, skip_rosetta=args.skip_rosetta)

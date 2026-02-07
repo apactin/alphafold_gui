@@ -48,6 +48,7 @@ diskpart
 select vdisk file="C:\Users\olive\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu22.04LTS_79rhkp1fndgsc\LocalState\ext4.vhdx" # replace with correct path
 expand vidsk maximum=1500000 # 1.5 TB
 wsl
+```
 
 Inside Ubuntu, find the device name and resize:
 
@@ -56,12 +57,15 @@ sudo resize2fs /dev/sdX   # replace sdX with the correct device
 df -h /
 
 
-3) Run the WSL setup script (Ubuntu)
+## 3) Run the WSL setup script (Ubuntu)
 Inside Ubuntu:
 
+```wsl
 cd /mnt/c/Users/<YOU>/Documents/GitHub/<YOUR_REPO>
 chmod +x install/setup_wsl.sh
 ./install/setup_wsl.sh
+```
+
 What it does:
 
 Updates Ubuntu + installs base packages
@@ -80,30 +84,34 @@ Installs mmseqs2 via Linuxbrew
 
 Runs sanity checks
 
-4) Manual downloads (required)
-A) AlphaFold3 weights
+## 4) Manual downloads (required)
+- AlphaFold3 weights
 Place your weights here:
 
 ~/Repositories/alphafold/af_weights/af3.bin.zst
 Then:
 
+```
 sudo apt install -y zstd
 cd ~/Repositories/alphafold/af_weights
 unzstd af3.bin.zst
+```
 
-B) MMseqs database
+- MMseqs database
 Download uniref30_2302.db.tar.gz from:
 
 https://opendata.mmseqs.org/colabfold
 
 Copy into WSL and extract:
 
+```
 cp /mnt/c/Users/<YOU>/Downloads/uniref30_2302.db.tar.gz ~/Repositories/alphafold/mmseqs_db/
 cd ~/Repositories/alphafold/mmseqs_db
 tar -xzf uniref30_2302.db.tar.gz
 
 export MMSEQS_NUM_THREADS=20
 echo $MMSEQS_NUM_THREADS
+```
 
 5) AlphaFold3 patch note (manual)
 AlphaFold uses Triton (optimizes for GPU). Depending on your GPU age, this may or may not be supported. If not, you will need to patch:
@@ -116,10 +124,13 @@ Remove the final if (triton) block before the return statement.
 
 Check Docker GPU
 
+```
 docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+```
 
 Check AlphaFold3 container runs
 
+```
 docker run --rm -it \
   --gpus all \
   --volume ~/Repositories/alphafold/af_input:/work/af_input \
@@ -127,17 +138,23 @@ docker run --rm -it \
   --volume ~/Repositories/alphafold/af_weights:/work/models \
   --volume ~/Repositories/alphafold/public_databases:/public_databases \
   alphafold3 python -c "print('container OK')"
+  ```
+
 MMseqs quick test
+```
 mmseqs easy-search <(echo -e ">q\nMKT...YOURSEQ") \
   ~/Repositories/alphafold/mmseqs_db/uniref30_2302_db outDB tmp && echo OK
+  ```
 
 7) Optional: Rosetta (minimization)
 Download Rosetta (this version: https://downloads.rosettacommons.org/downloads/academic/2021/wk16/) and copy to WSL, e.g.:
 
+```
 mkdir -p ~/rosetta
 cp /mnt/c/Users/<YOU>/Downloads/rosetta_bin_linux_2021.16.61629_bundle.tgz ~/rosetta/
 cd ~/rosetta
 tar -xvf rosetta_bin_linux_2021.16.61629_bundle.tgz
+```
 
 If you use LYX.params:
 

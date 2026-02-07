@@ -36,14 +36,18 @@ from pathlib import Path
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+import config_tab as _config_tab
+import runs_features as _runs_features
+import runs_metrics as _runs_metrics
+import viewers as _viewers
+
 from PyQt6 import uic
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QRect, QRectF, QPoint, QTimer
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QRect, QRectF, QTimer, QProcess
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QFontMetrics, QWheelEvent, QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
     QMessageBox,
-    QFileDialog,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -57,18 +61,17 @@ from PyQt6.QtWidgets import (
     QFrame,
     QLabel,
     QSpinBox,
-    QCheckBox,
-    QScrollArea,
-    QGroupBox,
     QInputDialog,
     QScrollBar,
     QToolButton, 
-    QMenu
+    QMenu,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QMessageBox,
+    QSizePolicy,
 )
 
-# ==========================
-# 🧠 Lazy backend import (after profile env set)
-# ==========================
 cfg = None
 json_builder = None
 runner = None
@@ -80,8 +83,7 @@ def _ensure_backend_loaded():
     global cfg, json_builder, runner, cache_utils, prepare_ligand_from_smiles, _canonical_smiles
     if cfg is not None:
         return
-
-    # ✅ Guard: don't load backend until profile config is chosen
+    
     if not (os.environ.get("AF3_PIPELINE_CONFIG") or "").strip():
         raise RuntimeError("Backend loaded before AF3_PIPELINE_CONFIG is set (profile not activated yet).")
 
@@ -96,29 +98,20 @@ def _ensure_backend_loaded():
     prepare_ligand_from_smiles = _pls
     _canonical_smiles = _canon
 
-
-# ==========================
-# 📁 Paths & Cache (profile-scoped)
-# ==========================
 def norm_path(x: str | Path) -> Path:
     return Path(x).expanduser().resolve()
 
 def _default_user_cfg_dir() -> Path:
     return Path.home() / ".af3_pipeline"
 
-# These are initialized AFTER profile activation
 GUI_CACHE_DIR: Path = norm_path(_default_user_cfg_dir() / "users" / "_UNSET_" / "gui_cache")
 SEQUENCE_CACHE_FILE: Path = GUI_CACHE_DIR / "sequence_cache.json"
 LIGAND_CACHE_FILE: Path   = GUI_CACHE_DIR / "ligand_cache.json"
 QUEUE_FILE: Path          = GUI_CACHE_DIR / "job_queue.json"
 NOTES_FILE: Path          = GUI_CACHE_DIR / "notes.txt"
 RUNS_HISTORY_FILE: Path   = GUI_CACHE_DIR / "runs_history.json"
-
 LIGAND_CACHE: Path        = norm_path(_default_user_cfg_dir() / "users" / "_UNSET_" / "cache" / "ligands")
 
-# ==========================
-# ⚙️ Constants
-# ==========================
 PTM_CHOICES = {
     "None": None,
 
@@ -184,14 +177,11 @@ COFACTOR_CHOICES  = ["ATP", "ADP", "AMP", "NAD", "NADP", "FAD", "CoA", "SAM", "G
 ATOM_MAP = {
     "Cysteine (SG)": "SG",
     "Lysine (NZ)": "NZ",
-    "Tyrosine (OH)": "OH",
     "Histidine (ND1)": "ND1",
     "Histidine (NE2)": "NE2",
+    "Tyrosine (OH)": "OH",
 }
 
-# ==========================
-# 🧭 Small helpers
-# ==========================
 def _read_json(path: Path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
@@ -275,9 +265,6 @@ def resource_path(rel: str) -> Path:
 
     return base / rel
 
-# ==========================
-# 👤 Profiles (module-level)
-# ==========================
 CURRENT_PROFILE_FILE = norm_path(_default_user_cfg_dir() / "current_profile.json")
 USERS_ROOT = norm_path(_default_user_cfg_dir() / "users")
 
@@ -351,6 +338,183 @@ def _shared_dir(*parts: str) -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
 
+class WSLProcessTable(QWidget):
+    """
+    Polls WSL `ps` and shows only processes matching a regex (default: alphafold/rosetta/mmseqs).
+    Auto-refresh every 2 seconds. Includes a Kill button to terminate the selected PID.
+    """
+    def __init__(self, parent=None, distro="Ubuntu-22.04"):
+        super().__init__(parent)
+        self.distro = distro
+
+        self.proc = QProcess(self)
+        self.proc.finished.connect(self._on_finished)
+
+        self.kill_proc = QProcess(self)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(2000) 
+        self.timer.timeout.connect(self.refresh)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(4)
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+
+        self.title = QLabel("WSL processes (GUI-relevant)", self)
+        f = self.title.font()
+        f.setBold(True)
+        self.title.setFont(f)
+
+        title_row.addWidget(self.title, 1)
+        outer.addLayout(title_row)
+
+        controls = QHBoxLayout()
+        controls.setContentsMargins(0, 4, 0, 0)
+        controls.setSpacing(6)
+
+        self.filterEdit = QLineEdit(self)
+        self.filterEdit.setPlaceholderText("filter regex (matches full cmdline)")
+        self.filterEdit.setText(r"(alphafold|rosetta|mmseqs)")
+
+        self.btn_kill = QPushButton("Kill selected", self)
+        self.btn_kill.setToolTip("Send SIGTERM to selected PID; if it persists, send SIGKILL.")
+        self.btn_kill.clicked.connect(self.kill_selected)
+
+        controls.addWidget(QLabel("Filter:", self), 0)
+        controls.addWidget(self.filterEdit, 3)
+        controls.addWidget(self.btn_kill, 0)
+
+        outer.addLayout(controls)
+
+        self.table = QTableWidget(self)
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["PID", "CPU%", "MEM%", "ELAPSED", "CMD", "ARGS"])
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
+
+        body_font = self.table.font()
+
+        header_font = QFont(body_font)
+        header_font.setPointSize(max(8, body_font.pointSize() - 2))
+
+        self.table.horizontalHeader().setFont(header_font)
+
+        self.table.horizontalHeader().setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        self.table.verticalHeader().setDefaultSectionSize(18)
+
+        hdr = self.table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) 
+        hdr.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)       
+
+        outer.addWidget(self.table, 1)
+
+        self.filterEdit.returnPressed.connect(self.refresh)
+
+        self.setMinimumHeight(180)
+        self.setMaximumHeight(220)
+
+        self.timer.start()
+        self.refresh()
+
+    def refresh(self):
+        if self.proc.state() != QProcess.ProcessState.NotRunning:
+            return
+
+        ps_cmd = r"ps -eo pid=,pcpu=,pmem=,etime=,comm=,args= --sort=-pcpu"
+        args = ["-d", self.distro, "--", "bash", "-lc", ps_cmd]
+        self.proc.start("wsl.exe", args)
+
+    def _on_finished(self, _code, _status):
+        out = bytes(self.proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+        err = bytes(self.proc.readAllStandardError()).decode("utf-8", errors="replace")
+
+        if err.strip() and not out.strip():
+            self._set_rows([("—", "—", "—", "—", "ps", err.strip())])
+            return
+
+        pattern = (self.filterEdit.text() or "").strip()
+        try:
+            rx = re.compile(pattern, re.IGNORECASE) if pattern else None
+        except re.error:
+            rx = re.compile(r"(alphafold|rosetta|mmseqs)", re.IGNORECASE)
+
+        rows = []
+        for line in (out or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            parts = line.split(None, 5)
+            if len(parts) < 5:
+                continue
+            if len(parts) == 5:
+                parts.append("")
+
+            pid, cpu, mem, etime, comm, cmdline = parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]
+            hay = f"{comm} {cmdline}".strip()
+            if rx and not rx.search(hay):
+                continue
+
+            rows.append((pid, cpu, mem, etime, comm, cmdline))
+
+        self._set_rows(rows)
+
+    def _set_rows(self, rows):
+        self.table.setRowCount(len(rows))
+        for r, rowdata in enumerate(rows):
+            for c, val in enumerate(rowdata):
+                item = QTableWidgetItem(str(val))
+                if c in (0, 1, 2):
+                    item.setTextAlignment(int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter))
+                self.table.setItem(r, c, item)
+
+    def _selected_pid(self) -> str | None:
+        sel = self.table.selectionModel()
+        if not sel or not sel.hasSelection():
+            return None
+        row = sel.selectedRows()[0].row()
+        pid_item = self.table.item(row, 0)
+        pid = (pid_item.text() if pid_item else "").strip()
+        return pid if pid.isdigit() else None
+
+    def kill_selected(self):
+        pid = self._selected_pid()
+        if not pid:
+            QMessageBox.information(self, "Kill process", "Select a process row first (PID must be numeric).")
+            return
+        
+        kill_cmd = f"kill -TERM {pid} >/dev/null 2>&1; " \
+                   f"sleep 0.2; " \
+                   f"kill -0 {pid} >/dev/null 2>&1 && kill -KILL {pid} >/dev/null 2>&1; true"
+
+        args = ["-d", self.distro, "--", "bash", "-lc", kill_cmd]
+        self.kill_proc.start("wsl.exe", args)
+
+        QTimer.singleShot(350, self.refresh)
+
+    def closeEvent(self, e):  
+        self.timer.stop()
+        if self.proc.state() != QProcess.ProcessState.NotRunning:
+            self.proc.kill()
+            self.proc.waitForFinished(500)
+        if self.kill_proc.state() != QProcess.ProcessState.NotRunning:
+            self.kill_proc.kill()
+            self.kill_proc.waitForFinished(500)
+        super().closeEvent(e)
+
 # ==========================
 # 🗒 Notes
 # ==========================
@@ -387,14 +551,12 @@ class PtmDialog(QDialog):
 
         outer = QVBoxLayout(self)
 
-        # rows container
         self.rows_widget = QWidget(self)
         self.rows_layout = QVBoxLayout(self.rows_widget)
         self.rows_layout.setContentsMargins(0, 0, 0, 0)
         self.rows_layout.setSpacing(6)
         outer.addWidget(self.rows_widget)
 
-        # controls
         controls = QHBoxLayout()
         self.add_btn = QPushButton("➕ Add PTM", self)
         self.add_btn.clicked.connect(self._add_row)
@@ -402,7 +564,6 @@ class PtmDialog(QDialog):
         controls.addStretch(1)
         outer.addLayout(controls)
 
-        # save/cancel
         btns = QHBoxLayout()
         btns.addStretch(1)
         self.save_btn = QPushButton("Save", self)
@@ -413,24 +574,19 @@ class PtmDialog(QDialog):
         btns.addWidget(self.save_btn)
         outer.addLayout(btns)
 
-        # seed initial rows
         if initial:
             for it in initial:
                 self._add_row(label=it.get("label"), ccd=it.get("ccd"), pos=it.get("pos"))
         else:
-            # start with one row by default (optional)
             self._add_row()
 
     def _add_row(self, *, label: Optional[str] = None, ccd: Optional[str] = None, pos: Optional[str] = None):
         row = QHBoxLayout()
 
         dd = QComboBox(self)
-        # Build dropdown from PTM_CHOICES
-        # (keep "None" as a choice; you can also omit if you want)
         for lab, c in self.ptm_choices.items():
             dd.addItem(lab, c)
 
-        # restore selection by ccd or label
         if ccd is not None:
             for i in range(dd.count()):
                 if dd.itemData(i) == ccd:
@@ -450,7 +606,6 @@ class PtmDialog(QDialog):
         rm.setFixedWidth(40)
 
         def _remove():
-            # Remove from layout + delete widgets
             for i, (ddd, ppp, rrr) in enumerate(list(self._rows)):
                 if ddd is dd and ppp is pos_edit and rrr is rm:
                     self._rows.pop(i)
@@ -458,7 +613,6 @@ class PtmDialog(QDialog):
             dd.setParent(None); dd.deleteLater()
             pos_edit.setParent(None); pos_edit.deleteLater()
             rm.setParent(None); rm.deleteLater()
-            # also remove the layout item wrapper by rebuilding the rows widget
             self._rebuild_rows()
 
         rm.clicked.connect(_remove)
@@ -471,14 +625,11 @@ class PtmDialog(QDialog):
         self._rebuild_rows()
 
     def _rebuild_rows(self):
-        # Clear rows_layout
         while self.rows_layout.count():
             item = self.rows_layout.takeAt(0)
             if item.layout():
-                # layouts are owned, no direct delete needed
                 pass
 
-        # Re-add rows
         for dd, pos_edit, rm in self._rows:
             h = QHBoxLayout()
             h.addWidget(dd, 3)
@@ -494,13 +645,11 @@ class PtmDialog(QDialog):
             label = dd.currentText().strip()
             ccd = dd.currentData()
 
-            # Skip empty/None PTMs unless you want to keep explicit "None"
             if ccd in (None, "None") or label.lower() == "none":
                 continue
 
             pos = pos_edit.text().strip()
             if not pos:
-                # allow missing pos? I'd recommend requiring it:
                 continue
 
             out.append({
@@ -553,12 +702,11 @@ class BuildThread(QThread):
     def run(self):
         try:
             _ensure_backend_loaded()
-            def progress_hook(msg):  # noqa: ANN001
+            def progress_hook(msg):  
                 self.progress.emit(str(msg))
 
-            json_builder._progress_hook = progress_hook  # type: ignore[attr-defined]
+            json_builder._progress_hook = progress_hook  
 
-            # Preferred: pass lists through if backend supports it
             try:
                 json_path = json_builder.build_input(
                     jobname=self.jobname,
@@ -568,7 +716,6 @@ class BuildThread(QThread):
                     ligand=self.ligand,
                 )
             except TypeError:
-                # Fallback: old backend expects single RNA/DNA dicts
                 rna_one = self.rna[0] if isinstance(self.rna, list) and self.rna else {"sequence": "", "modification": "", "pos": ""}
                 dna_one = self.dna[0] if isinstance(self.dna, list) and self.dna else {"sequence": "", "modification": "", "pos": ""}
                 json_path = json_builder.build_input(
@@ -591,12 +738,10 @@ class RunThread(QThread):
     finished = pyqtSignal(str)
     failed   = pyqtSignal(str)
 
-    def __init__(self, json_path: str, job_name: str, auto_analyze: bool = False, multi_seed: bool = False):
+    def __init__(self, json_path: str, job_name: str):
         super().__init__()
         self.json_path = json_path
         self.job_name  = job_name
-        self.auto_analyze = auto_analyze
-        self.multi_seed = multi_seed
 
     def run(self):
         try:
@@ -604,12 +749,13 @@ class RunThread(QThread):
             runner.run_af3(
                 self.json_path,
                 job_name=self.job_name,
-                auto_analyze=self.auto_analyze,
-                multi_seed=self.multi_seed,
+                auto_analyze=False,   
+                multi_seed=False,   
             )
             self.finished.emit(self.json_path)
         except Exception as e:
             self.failed.emit(str(e))
+
 
 class DetectConfigWorker(QThread):
     done = pyqtSignal(dict)
@@ -648,7 +794,6 @@ class DetectConfigWorker(QThread):
         )
         out, err = p.communicate()
 
-        # ✅ NUL bytes can appear in Windows command output sometimes
         out = (out or "").replace("\x00", "").strip()
         err = (err or "").replace("\x00", "").strip()
 
@@ -658,15 +803,13 @@ class DetectConfigWorker(QThread):
     def _detect_on_windows(self) -> dict[str, Any]:
         s: dict[str, Any] = {}
         self.log.emit("🔎 Detecting on Windows…")
-
-        # gui_dir = folder containing this file (best-effort)
         try:
             gui_dir = Path(__file__).resolve().parent
             s["gui_dir"] = str(gui_dir)
         except Exception:
             pass
 
-        s["platform"] = "wsl"  # your main target
+        s["platform"] = "wsl" 
 
         rc, out, err = self._run_cmd(["wsl.exe", "-l", "-v"])
         if rc == 0 and out:
@@ -680,13 +823,11 @@ class DetectConfigWorker(QThread):
         else:
             self.log.emit("⚠️ wsl.exe not found or failed. Is WSL installed?")
 
-        # docker_bin: if docker works on Windows, keep "docker"
         rc, _, _ = self._run_cmd(["docker", "version"])
         if rc == 0:
             s["docker_bin"] = "docker"
             self.log.emit("✅ Docker available on Windows")
         else:
-            # Some users only have docker inside WSL
             distro = s.get("wsl_distro", self.current_distro)
             if distro:
                 rc2, _, _ = self._run_cmd(["wsl.exe", "-d", str(distro), "--", "docker", "version"])
@@ -696,7 +837,6 @@ class DetectConfigWorker(QThread):
                 else:
                     self.log.emit("⚠️ Docker not detected (Windows or WSL).")
 
-        # Now run WSL probes if we have a distro
         distro = (s.get("wsl_distro", self.current_distro) or "").replace("\x00", "").strip()
         if distro:
             s.update(self._detect_inside_wsl(distro))
@@ -706,14 +846,13 @@ class DetectConfigWorker(QThread):
 
     def _parse_default_wsl_distro(self, text: str) -> str | None:
         text = (text or "").replace("\x00", "")
-        # Try to match the starred default distro line
+
         for line in text.splitlines():
             line = line.replace("\x00", "").strip()
             m = re.match(r"^\*\s*([A-Za-z0-9_.-]+)\b", line)
             if m:
                 return m.group(1)
 
-        # Fallback: if only one distro row exists, take first token
         lines = [
             ln.replace("\x00", "").strip()
             for ln in text.splitlines()
@@ -734,13 +873,11 @@ class DetectConfigWorker(QThread):
         def wsl(cmd: str) -> tuple[int, str, str]:
             return self._run_cmd(["wsl.exe", "-d", distro, "--", "bash", "-lc", cmd])
 
-        # linux_home_root
         rc, out, _ = wsl("echo $HOME")
         if rc == 0 and out.startswith("/"):
             s["linux_home_root"] = out
             self.log.emit(f"✅ linux_home_root: {out}")
 
-        # af3_dir: try a few common paths, then shallow find
         candidates = [
             "$HOME/Repositories/alphafold",
             "$HOME/repos/alphafold",
@@ -760,7 +897,6 @@ class DetectConfigWorker(QThread):
                 s["af3_dir"] = out
                 self.log.emit(f"✅ af3_dir (found): {out}")
 
-        # msa.db: prefer <af3_dir>/mmseqs_db
         af3 = s.get("af3_dir")
         if af3:
             rc, out, _ = wsl(f"test -d '{af3}/mmseqs_db' && echo '{af3}/mmseqs_db'")
@@ -769,13 +905,8 @@ class DetectConfigWorker(QThread):
                 s["msa"]["db"] = out
                 self.log.emit(f"✅ msa.db: {out}")
 
-        # rosetta_relax_bin: leave blank unless we confidently find it
-        # (Better to prompt user than guess wrong.)
         return s
 
-    # -------------------------
-    # Linux-only detection
-    # -------------------------
     def _detect_on_linux(self) -> dict[str, Any]:
         s: dict[str, Any] = {}
         self.log.emit("🔎 Detecting on Linux…")
@@ -786,35 +917,31 @@ class DetectConfigWorker(QThread):
             s["gui_dir"] = str(Path(__file__).resolve().parent)
         except Exception:
             pass
-        # You can add Linux AF3/mmseqs detection later
         return s
-
-
+    
 class AnalysisWorker(QThread):
     log = pyqtSignal(str)
     done = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self, job_name: str, multi_seed: bool = False):
+    def __init__(self, job_name: str, multi_seed: bool = False, skip_rosetta: bool = False):
         super().__init__()
         self.job_name = job_name
-        self.multi_seed = multi_seed
+        self.multi_seed = bool(multi_seed)
+        self.skip_rosetta = bool(skip_rosetta)
 
     def run(self):
         try:
             _ensure_backend_loaded()
-            # main_window.py lives at: repo/apps/gui/main_window.py
-            # -> parents[2] == repo/
             repo_root = Path(__file__).resolve().parents[2]
-
-            # Use the same interpreter as the GUI (conda env, etc.)
             exe = sys.executable
 
             cmd = [exe, "-m", "af3_pipeline.analysis.post_analysis", "--job", str(self.job_name)]
             if self.multi_seed:
                 cmd.append("--multi_seed")
+            if self.skip_rosetta:
+                cmd.append("--skip_rosetta") 
 
-            # Ensure the subprocess can import af3_pipeline regardless of cwd
             env = os.environ.copy()
             env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
             env["AF3_PIPELINE_CONFIG"] = os.environ.get("AF3_PIPELINE_CONFIG", "")
@@ -823,8 +950,8 @@ class AnalysisWorker(QThread):
 
             with subprocess.Popen(
                 cmd,
-                cwd=str(repo_root),          # ⭐ critical
-                env=env,                     # ⭐ critical
+                cwd=str(repo_root),
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 bufsize=1,
@@ -845,10 +972,13 @@ class AnalysisWorker(QThread):
             tb = traceback.format_exc()
             self.error.emit(f"{e}\n{tb}")
 
+try:
+    import runs_features as _runs_features
+    _runs_features.AnalysisWorker = AnalysisWorker
+except Exception:
+    pass
 
-# ==========================
-# 🧬 Dynamic entry widgets (Alphafold page)
-# ==========================
+
 @dataclass
 class MacroEntryRefs:
     root: QWidget
@@ -856,12 +986,11 @@ class MacroEntryRefs:
     name: QLineEdit
     seq: QPlainTextEdit
 
-    # NEW PTM UI + state
     ptm_button: QPushButton
     ptm_summary: QLabel
-    ptms: list[dict[str, str]] = field(default_factory=list)  # [{"ccd":"SEP","label":"Phosphoserine (pSer)","pos":"12"}, ...]
+    ptms: list[dict[str, str]] = field(default_factory=list)  
 
-    template: Optional[QLineEdit] = None  # proteins only
+    template: Optional[QLineEdit] = None
     delete_btn: Optional[QPushButton] = None
 
 
@@ -876,49 +1005,71 @@ def _build_entry_widget(
     on_select,
 ) -> MacroEntryRefs:
     frame = QFrame(parent)
+    frame.setObjectName("MacroEntryCard")
     frame.setFrameShape(QFrame.Shape.StyledPanel)
 
+    frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+    frame.setMaximumHeight(190)
+
     outer = QVBoxLayout(frame)
-    outer.setContentsMargins(6, 6, 6, 6)
+    outer.setContentsMargins(10, 10, 10, 10)
+    outer.setSpacing(8)
 
     row = QHBoxLayout()
     row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(8)
 
     dd = QComboBox(frame)
     dd.addItem("Select saved…")
     dd.addItems(saved_names)
+    dd.setMinimumWidth(220)
+    dd.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-    del_btn = QPushButton("🗑", frame)
-
-    # Hidden name field (kept for compatibility with run caching/loader)
     name = QLineEdit(frame)
     name.hide()
     name.setFixedSize(0, 0)
     name.setObjectName("hiddenNameField")
 
-    row.addWidget(dd, 3)
-
     template = None
     if kind == "protein":
         template = QLineEdit(frame)
         template.setPlaceholderText("PDB template (optional)")
+        template.setMinimumWidth(220)
+        template.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    ptm_btn = QToolButton(frame)
+    ptm_btn.setText("PTMs…")
+    ptm_btn.setAutoRaise(True)
+
+    ptm_summary = QLabel("None", frame)
+    ptm_summary.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+    ptm_summary.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+    ptm_summary.setMinimumWidth(60)
+
+    del_btn = QToolButton(frame)
+    del_btn.setAutoRaise(True)
+    del_btn.setText("🗑")
+    del_btn.setToolTip("Remove this entry")
+
+    row.addWidget(dd, 3)
+    if template is not None:
         row.addWidget(template, 3)
 
-    # --- NEW PTM button + summary ---
-    ptm_btn = QPushButton("PTMs…", frame)
-    ptm_summary = QLabel("None", frame)
-    ptm_summary.setMinimumWidth(160)
-    ptm_summary.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-
     row.addWidget(ptm_btn, 0)
-    row.addWidget(ptm_summary, 2)
-
+    row.addWidget(ptm_summary, 0)
+    row.addStretch(1)
     row.addWidget(del_btn, 0)
 
     outer.addLayout(row)
 
     seq = QPlainTextEdit(frame)
-    seq.hide()
+    seq.setPlaceholderText("Sequence…")
+    seq.setTabChangesFocus(True)
+
+    seq.setMinimumHeight(80)
+    seq.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+    outer.addWidget(seq)
 
     refs = MacroEntryRefs(
         root=frame,
@@ -932,7 +1083,7 @@ def _build_entry_widget(
         delete_btn=del_btn,
     )
 
-    del_btn.clicked.connect(lambda: on_delete(refs))
+    del_btn.clicked.connect(lambda _=False: on_delete(refs))
     dd.currentTextChanged.connect(lambda txt: on_select(refs, txt))
 
     return refs
@@ -964,7 +1115,6 @@ def _find_doc_range_for_norm_span(norm_to_doc: list[int], start: int, length: in
     end_norm = max(start, min(start + length - 1, len(norm_to_doc) - 1))
     doc_start = norm_to_doc[start]
     doc_end = norm_to_doc[end_norm] + 1
-    # Expand doc_end across any immediately following whitespace/newlines? Not necessary.
     return (doc_start, doc_end)
 
 def _all_occurrences(haystack: str, needle: str) -> list[int]:
@@ -978,7 +1128,7 @@ def _all_occurrences(haystack: str, needle: str) -> list[int]:
         if j < 0:
             break
         out.append(j)
-        i = j + 1  # allow overlaps
+        i = j + 1
     return out
 
 
@@ -990,8 +1140,8 @@ class SequenceMapCanvas(QWidget):
       - selection region
       - scroll position + zoom
     """
-    requestSeek = pyqtSignal(int)                 # normalized index to center view on
-    requestSelect = pyqtSignal(int, int)          # (start, length) normalized selection
+    requestSeek = pyqtSignal(int)
+    requestSelect = pyqtSignal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -999,17 +1149,15 @@ class SequenceMapCanvas(QWidget):
         self.setMouseTracking(True)
 
         self._seq_len = 0
-        self._px_per_res = 6.0        # zoom
-        self._offset_res = 0          # leftmost residue index
-        self._hits: list[tuple[int, int]] = []       # list of (start, length)
+        self._px_per_res = 6.0       
+        self._offset_res = 0       
+        self._hits: list[tuple[int, int]] = []     
         self._active_hit_idx: int = -1
-        self._sel: tuple[int, int] | None = None     # (start, length)
+        self._sel: tuple[int, int] | None = None    
 
-        # drag selection state
         self._dragging = False
         self._drag_anchor_res: int | None = None
 
-    # ----- model setters -----
     def setSequenceLength(self, n: int) -> None:
         self._seq_len = max(0, int(n))
         self.update()
@@ -1031,9 +1179,7 @@ class SequenceMapCanvas(QWidget):
         self._sel = sel
         self.update()
 
-    # ----- geometry helpers -----
     def _res_at_x(self, x: int) -> int:
-        # map x px -> residue index
         res = int(self._offset_res + (x / self._px_per_res))
         return max(0, min(res, max(0, self._seq_len - 1)))
 
@@ -1043,18 +1189,15 @@ class SequenceMapCanvas(QWidget):
     def visible_res_count(self) -> int:
         return int(self.width() / self._px_per_res) + 1
 
-    # ----- painting -----
-    def paintEvent(self, _evt):  # noqa: N802
+    def paintEvent(self, _evt):  
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
         w = self.width()
         h = self.height()
 
-        # Background
         p.fillRect(QRect(0, 0, w, h), self.palette().base())
 
-        # If no sequence, draw hint
         if self._seq_len <= 0:
             p.setPen(self.palette().text().color())
             p.drawText(QRect(0, 0, w, h), int(Qt.AlignmentFlag.AlignCenter), "No sequence")
@@ -1066,13 +1209,11 @@ class SequenceMapCanvas(QWidget):
         tick_top = baseline_y - 12
         tick_bot = baseline_y + 12
 
-        # Baseline
         pen_base = QPen(self.palette().text().color())
         pen_base.setWidth(1)
         p.setPen(pen_base)
         p.drawLine(0, baseline_y, w, baseline_y)
 
-        # Highlight hits
         for idx, (s, ln) in enumerate(self._hits):
             if ln <= 0:
                 continue
@@ -1082,15 +1223,12 @@ class SequenceMapCanvas(QWidget):
                 continue
             rect = QRectF(max(0.0, x1), baseline_y - 16, min(float(w), x2) - max(0.0, x1), 32)
             if idx == self._active_hit_idx:
-                # stronger fill
                 p.fillRect(rect, self.palette().highlight())
             else:
-                # lighter fill
                 c = self.palette().highlight().color()
                 c.setAlpha(90)
                 p.fillRect(rect, c)
 
-        # Highlight selection (on top)
         if self._sel:
             s, ln = self._sel
             if ln > 0:
@@ -1101,33 +1239,25 @@ class SequenceMapCanvas(QWidget):
                     c.setAlpha(160)
                     p.fillRect(QRectF(max(0.0, x1), baseline_y - 18, min(float(w), x2) - max(0.0, x1), 36), c)
 
-        # Ticks + labels
-        # Major tick every 10, label every 50
         first_res = self._offset_res
         last_res = min(self._seq_len - 1, self._offset_res + self.visible_res_count())
 
-        # Start from nearest 10 below first_res (1-based display makes labels nicer)
         start_tick = (first_res // 10) * 10
         for r in range(start_tick, last_res + 1, 10):
             x = int(self._x_at_res(r))
             if x < 0:
                 continue
-            # Major tick
             p.drawLine(x, tick_top, x, tick_bot)
 
-            # label every 50 residues
             if r % 50 == 0 and r != 0:
                 label = str(r)
                 tw = fm.horizontalAdvance(label)
                 p.drawText(x - tw // 2, top + fm.ascent(), label)
 
-        # End label (sequence length)
         end_label = f"Len: {self._seq_len}"
         p.drawText(8, h - 8, end_label)
 
-    # ----- interaction -----
-    def wheelEvent(self, e: QWheelEvent):  # noqa: N802
-        # Ctrl+wheel zoom (common convention)
+    def wheelEvent(self, e: QWheelEvent): 
         if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
             delta = e.angleDelta().y()
             if delta > 0:
@@ -1138,17 +1268,16 @@ class SequenceMapCanvas(QWidget):
             return
         super().wheelEvent(e)
 
-    def mousePressEvent(self, e):  # noqa: N802
+    def mousePressEvent(self, e): 
         if e.button() == Qt.MouseButton.LeftButton and self._seq_len > 0:
             self._dragging = True
             self._drag_anchor_res = self._res_at_x(e.position().x())
-            # single click → caret/selection of length 1
             self.requestSelect.emit(self._drag_anchor_res, 1)
             e.accept()
             return
         super().mousePressEvent(e)
 
-    def mouseMoveEvent(self, e):  # noqa: N802
+    def mouseMoveEvent(self, e):  
         if self._dragging and self._drag_anchor_res is not None:
             cur = self._res_at_x(e.position().x())
             a = self._drag_anchor_res
@@ -1159,7 +1288,7 @@ class SequenceMapCanvas(QWidget):
             return
         super().mouseMoveEvent(e)
 
-    def mouseReleaseEvent(self, e):  # noqa: N802
+    def mouseReleaseEvent(self, e):  
         if e.button() == Qt.MouseButton.LeftButton:
             self._dragging = False
             self._drag_anchor_res = None
@@ -1167,7 +1296,7 @@ class SequenceMapCanvas(QWidget):
             return
         super().mouseReleaseEvent(e)
 
-    def mouseDoubleClickEvent(self, e):  # noqa: N802
+    def mouseDoubleClickEvent(self, e): 
         if e.button() == Qt.MouseButton.LeftButton:
             res = self._res_at_x(e.position().x())
             self.requestSeek.emit(res)
@@ -1202,7 +1331,6 @@ class SequenceMapPanel(QWidget):
         outer.setContentsMargins(0, 6, 0, 0)
         outer.setSpacing(6)
 
-        # Optional mini header row
         head = QHBoxLayout()
         if title:
             lab = QLabel(title, self)
@@ -1233,7 +1361,6 @@ class SequenceMapPanel(QWidget):
         self.hscroll = QScrollBar(Qt.Orientation.Horizontal, self)
         outer.addWidget(self.hscroll)
 
-        # Search row
         row = QHBoxLayout()
         self.searchEdit = QLineEdit(self)
         self.searchEdit.setPlaceholderText("Search motif (e.g. CXXC, KEN, NLS…) — plain text (no regex)")
@@ -1252,7 +1379,6 @@ class SequenceMapPanel(QWidget):
         row.addWidget(self.hitsLabel, 0)
         outer.addLayout(row)
 
-        # --- wiring ---
         self.zoomInBtn.clicked.connect(lambda: self._set_zoom(self._px_per_res * 1.15))
         self.zoomOutBtn.clicked.connect(lambda: self._set_zoom(self._px_per_res / 1.15))
 
@@ -1266,7 +1392,6 @@ class SequenceMapPanel(QWidget):
         self.findPrevBtn.clicked.connect(lambda: self._step_hit(-1))
         self.clearBtn.clicked.connect(self._clear_search)
 
-        # Debounce editor updates & search typing
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(200)
@@ -1274,11 +1399,9 @@ class SequenceMapPanel(QWidget):
 
         self._editor.textChanged.connect(self._debounced_refresh)
 
-        # Selection sync: reflect editor selection on the map
         try:
-            self._editor.selectionChanged.connect(self._sync_selection_from_editor)  # type: ignore[attr-defined]
+            self._editor.selectionChanged.connect(self._sync_selection_from_editor) 
         except Exception:
-            # Not fatal if not available
             pass
 
         self._recompute_from_editor()
@@ -1290,26 +1413,21 @@ class SequenceMapPanel(QWidget):
         """
         self._recompute_hits()
 
-        # If we have hits, select the first hit in the editor BUT keep typing focus in search box.
         if self._active_hit >= 0 and self._hits:
             s, ln = self._hits[self._active_hit]
 
-            # perform selection without stealing focus
             doc_start, doc_end = _find_doc_range_for_norm_span(self._norm_to_doc, s, ln)
             cursor = self._editor.textCursor()
             cursor.setPosition(doc_start)
             cursor.setPosition(doc_end, cursor.MoveMode.KeepAnchor)
             self._editor.setTextCursor(cursor)
 
-            # update map selection + view (map may scroll, but focus stays)
             self.canvas.setSelection((s, ln))
             self.center_on_residue(s)
 
-        # return focus to search box explicitly
         self.searchEdit.setFocus()
 
 
-    # ----- public helpers -----
     def _debounced_refresh(self):
         self._debounce.start()
 
@@ -1479,10 +1597,11 @@ class MainWindow(QMainWindow):
         self._install_profiles_row()
         self._install_sequence_map_panels()
 
-        # ✅ Must activate a profile BEFORE any cache/config IO
+        self._install_wsl_proc_table_under_logs()
+        self._install_config_help()
+
         self._ensure_profile_first_run()
 
-        # ✅ Now that profile is active, load caches from correct per-profile paths
         self.sequence_cache = _read_json(SEQUENCE_CACHE_FILE, {})
         self.ligand_cache   = _read_json(LIGAND_CACHE_FILE, {})
         self.runs_history   = _read_json(RUNS_HISTORY_FILE, [])
@@ -1494,6 +1613,9 @@ class MainWindow(QMainWindow):
         self.run_thread: Optional[RunThread] = None
         self.analysis_thread: Optional[AnalysisWorker] = None
         self.current_jobname: str = ""
+        self._pending_json_path: str = ""
+        self._pending_multi_seed: bool = False
+        self._pending_skip_rosetta: bool = False
 
         # ---- wire up ----
         self._connect_nav()
@@ -1626,7 +1748,6 @@ class MainWindow(QMainWindow):
         self.newProfileButton.setFixedWidth(42)
         self.newProfileButton.setToolTip("Create new profile")
 
-        # ✅ NEW: options menu button
         self.profileOptionsButton = QToolButton(self._profilesRow)
         self.profileOptionsButton.setText("⋯")
         self.profileOptionsButton.setFixedWidth(42)
@@ -1642,7 +1763,6 @@ class MainWindow(QMainWindow):
         row.addWidget(self.newProfileButton, 0)
         row.addWidget(self.profileOptionsButton, 0)
 
-        # Insert above navList
         try:
             self.sidebarLayout.insertWidget(1, self._profilesRow)
         except Exception as e:
@@ -1690,13 +1810,11 @@ class MainWindow(QMainWindow):
             self._activate_profile(cur, run_autodetect_if_needed=False)
             return
 
-        # No profile exists / not set: force create
         self._create_new_profile(force=True)
 
     def _create_new_profile(self, force: bool = False):
         dlg = NewProfileDialog(self)
         if force:
-            # Make it harder to skip on first run
             dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
 
         if not dlg.exec():
@@ -1713,7 +1831,6 @@ class MainWindow(QMainWindow):
 
         root = _profile_root(name)
         if root.exists() and any(root.iterdir()):
-            # Existing profile
             pass
         else:
             root.mkdir(parents=True, exist_ok=True)
@@ -1727,7 +1844,6 @@ class MainWindow(QMainWindow):
         name = (name or "").strip()
         if not name or name == "Select profile…":
             return
-        # Avoid reloading same profile repeatedly
         if getattr(self, "_active_profile", "") == name:
             return
         self._activate_profile(name, run_autodetect_if_needed=False)
@@ -1740,7 +1856,6 @@ class MainWindow(QMainWindow):
         if getattr(self, "_activating_profile", False):
             return
         if getattr(self, "_active_profile", "") == name and hasattr(self, "_profile_root"):
-            # already active and initialized
             if not run_autodetect_if_needed:
                 return
 
@@ -1748,57 +1863,68 @@ class MainWindow(QMainWindow):
         self._active_profile = name
         _save_current_profile_name(name)
         try:
-            # 1) repoint cache locations (globals)
             root = _set_active_profile_paths(name)
             self._profile_root = root
             self.log(f"👤 Active profile: {name}")
             self.log(f"📁 Profile root: {root}")
 
-            # 2) Per-profile env vars
             profile_cfg = root / "config.yaml"
             os.environ["AF3_PIPELINE_CONFIG"] = str(profile_cfg)
-
-            # ✅ Most important missing piece:
             os.environ["AF3_PIPELINE_CACHE_ROOT"] = str(root / "cache")
-
-            # Optional shared caches (fine)
             os.environ["AF3_PIPELINE_MSA_CACHE"] = str(_shared_dir("msa"))
             os.environ["AF3_PIPELINE_TEMPLATE_CACHE"] = str(_shared_dir("templates"))
 
-            # 3) Now load backend (after env set)
             _ensure_backend_loaded()
-
-            # 4) Ensure config exists for this profile
             self._bootstrap_config_yaml_from_template()
 
-            # 4) Reload cfg from this profile config
             try:
                 cfg.reload(profile_cfg)
             except Exception as e:
                 self.log(f"⚠️ cfg.reload failed: {e}")
 
-            # 5) Reload caches from the *profile* paths
             self.sequence_cache = _read_json(SEQUENCE_CACHE_FILE, {})
             self.ligand_cache   = _read_json(LIGAND_CACHE_FILE, {})
             self.runs_history   = _read_json(RUNS_HISTORY_FILE, [])
 
-            # 6) Refresh UI
             self._refresh_all_dropdowns()
             self._refresh_queue_view()
             self._refresh_runs_view()
 
-            # Also reset ligand notes box (if installed)
             if hasattr(self, "ligandNotesEdit"):
                 self._load_ligand_notes_for_name(self.ligandDropdown.currentText().strip())
 
-            # 7) Run autodetect if needed
             if run_autodetect_if_needed or self._config_needs_setup():
-                self.pagesStack.setCurrentIndex(0)  # CONFIG page index in your .ui (INTRO=0..CONFIG=5)
+                self.pagesStack.setCurrentIndex(0) 
                 self.navList.setCurrentRow(0)
                 self.log("🧭 Running per-profile auto-detect…")
                 self._start_autodetect()
         finally:
             self._activating_profile = False
+
+    def _install_wsl_proc_table_under_logs(self):
+        if hasattr(self, "wslProcTable"):
+            return
+
+        distro = "Ubuntu-22.04"
+        try:
+            d = (self.cfgWslDistro.text() or "").strip()
+            if d:
+                distro = d
+        except Exception:
+            pass
+
+        self.wslProcTable = WSLProcessTable(self, distro=distro)
+
+        try:
+            idx = self.sidebarLayout.indexOf(self.logOutput)
+            if idx < 0:
+                self.sidebarLayout.addWidget(self.wslProcTable)
+            else:
+                self.sidebarLayout.insertWidget(idx + 1, self.wslProcTable)
+        except Exception as e:
+            self.log(f"⚠️ Failed to insert WSL proc table: {e}")
+            self.sidebarLayout.addWidget(self.wslProcTable)
+
 
     # =======================
     # 📝 Ligand Notes (cached with ligand)
@@ -1809,35 +1935,27 @@ class MainWindow(QMainWindow):
         No .ui changes required.
         Saves notes to: LIGAND_CACHE/<hash>/NOTES.txt
         """
-        # Guard: only install once
         if hasattr(self, "ligandNotesEdit"):
             return
 
-        # Create label + editor
         self.ligandNotesLabel = QLabel("Notes", self)
         self.ligandNotesEdit = QPlainTextEdit(self)
         self.ligandNotesEdit.setPlaceholderText("Notes for this ligand… (autosaved)")
         self.ligandNotesEdit.setMinimumHeight(140)
 
-        # Insert under preview label within existing ligandPreviewLayout
         try:
-            # Your UI has: self.ligandPreviewLayout inside ligandPreviewGroup
-            # Add after the preview image label
             self.ligandPreviewLayout.addWidget(self.ligandNotesLabel)
             self.ligandPreviewLayout.addWidget(self.ligandNotesEdit)
         except Exception as e:
             self.log(f"⚠️ Failed to add ligand notes box to layout: {e}")
             return
 
-        # Debounced autosave
         self._ligand_notes_save_timer = QTimer(self)
         self._ligand_notes_save_timer.setSingleShot(True)
         self._ligand_notes_save_timer.setInterval(350)
         self._ligand_notes_save_timer.timeout.connect(self._save_current_ligand_notes_silent)
 
         self.ligandNotesEdit.textChanged.connect(lambda: self._ligand_notes_save_timer.start())
-
-        # Disabled until a ligand is selected
         self.ligandNotesEdit.setEnabled(False)
         self.ligandNotesLabel.setEnabled(False)
 
@@ -1872,7 +1990,6 @@ class MainWindow(QMainWindow):
         ligand_name = (ligand_name or "").strip()
         entry = self.ligand_cache.get(ligand_name)
         if not isinstance(entry, dict):
-            # No ligand selected / bad entry
             self._current_ligand_notes_name = ""
             self.ligandNotesEdit.blockSignals(True)
             try:
@@ -1926,7 +2043,6 @@ class MainWindow(QMainWindow):
             notes_path.parent.mkdir(parents=True, exist_ok=True)
             notes_path.write_text(self.ligandNotesEdit.toPlainText(), encoding="utf-8")
         except Exception as e:
-            # Log once in a while; keep it quiet to avoid annoying the user
             self.log(f"⚠️ Failed to save ligand notes for '{name}': {e}")
 
     def _install_sequence_map_panels(self):
@@ -2019,6 +2135,9 @@ class MainWindow(QMainWindow):
         put_if_missing("docker_bin", "docker")
         put_if_missing("alphafold_docker_image", "alphafold3")
         put_if_missing("alphafold_docker_env", {})
+        put_if_missing("chimera_path", "")
+        put_if_missing("pymol_path", "")
+        put_if_missing("models_dir", f"{repo_guess}/models")
 
         # --- Nested msa defaults ---
         msa = data.get("msa")
@@ -2040,7 +2159,7 @@ class MainWindow(QMainWindow):
         lig.setdefault("prune_rms", 0.25)
         lig.setdefault("keep_charge", False)
         lig.setdefault("require_assigned_stereo", False)
-        lig.setdefault("basename", "LIGAND")
+        lig.setdefault("basename", "LIG")
         lig.setdefault("name_default", "LIG")
         lig.setdefault("png_size", [1500, 1200])
         lig.setdefault("rdkit_threads", 0)
@@ -2162,21 +2281,6 @@ class MainWindow(QMainWindow):
         for e in self.rna_entries:
             refill(e, rna_names)
 
-    def _start_autodetect(self):
-        # Avoid double-running
-        if getattr(self, "_autodetect_in_flight", False):
-            return
-        self._autodetect_in_flight = True
-        if hasattr(self, "_detect_thread") and self._detect_thread and self._detect_thread.isRunning():
-            return
-
-        distro = self.cfgWslDistro.text().strip()
-
-        self._detect_thread = DetectConfigWorker("wsl", distro)
-        self._detect_thread.log.connect(self.log)
-        self._detect_thread.done.connect(self._on_autodetect_done)
-        self._detect_thread.start()
-
     def _save_config_yaml_silent(self):
         out = self._config_yaml_path()
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -2184,61 +2288,17 @@ class MainWindow(QMainWindow):
         out.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
         self.log(f"💾 Saved config.yaml (auto): {out}")
 
-
-    def _on_autodetect_done(self, s: dict):
-        self._autodetect_in_flight = False
-        if not s:
-            self.log("⚠️ Auto-detect returned no suggestions.")
-            return
-
-        # Top-level simple fields
-        if "wsl_distro" in s:
-            self.cfgWslDistro.setText(str(s["wsl_distro"]))
-        if "gui_dir" in s:
-            self.cfgGuiDir.setText(str(s["gui_dir"]))
-        if "linux_home_root" in s:
-            self.cfgLinuxHomeRoot.setText(str(s["linux_home_root"]))
-        if "af3_dir" in s:
-            self.cfgAf3Dir.setText(str(s["af3_dir"]))
-        if "docker_bin" in s:
-            self.cfgDockerBin.setText(str(s["docker_bin"]))
-        if "alphafold_docker_image" in s:
-            self.cfgDockerImage.setText(str(s["alphafold_docker_image"]))
-
-        # Nested msa dict
-        msa = s.get("msa")
-        if isinstance(msa, dict):
-            if "db" in msa:
-                self.cfgMMseqsDB.setText(self._posixify(str(msa["db"])))
-
-        self._save_config_yaml_silent()
-        self._reset_config_fields_from_cfg()
-        try:
-            _ensure_backend_loaded()
-            cfg.reload(self._config_yaml_path())
-            self.log(f"🧪 cfg msa.db = {cfg.get('msa.db','')}")
-        except Exception as e:
-            self.log(f"⚠️ cfg reload after autodetect failed: {e}")
-
-        self.log("✅ Auto-detect applied + config saved.")
-
-    def _config_needs_setup(self) -> bool:
-        data = self._load_config_yaml_best_effort()
-
-        # msa.db is required for MSA generation
-        msa = data.get("msa", {}) if isinstance(data.get("msa", {}), dict) else {}
-        msa_db = (msa.get("db") or "").strip()
-
-        required = [
-            (data.get("wsl_distro") or "").strip(),
-            (data.get("gui_dir") or "").strip(),
-            (data.get("linux_home_root") or "").strip(),
-            (data.get("af3_dir") or "").strip(),
-            msa_db,
-        ]
-        return any(not x for x in required)
-
-
+    def _get_template_from_cache(self, key: str) -> str:
+        """
+        Return saved template string for a sequence cache entry (protein/dna/rna).
+        Backward-compatible with legacy cache entries.
+        """
+        if key not in self.sequence_cache:
+            return ""
+        val = self.sequence_cache[key]
+        if isinstance(val, dict):
+            return str(val.get("template", "") or "")
+        return ""
 
     # =======================
     # 🧾 Sequences page
@@ -2262,40 +2322,55 @@ class MainWindow(QMainWindow):
     def _load_sequence_into_editor(self, kind: str, name: str):
         if name in {"Select saved…", "Select saved..."}:
             if kind == "protein":
-                self.proteinSeqName.clear(); self.proteinSeqEditor.setPlainText("")
+                self.proteinSeqName.clear()
+                self.proteinSeqEditor.setPlainText("")
+                self.proteinTemplate.clear()
             elif kind == "dna":
-                self.dnaSeqName.clear(); self.dnaSeqEditor.setPlainText("")
+                self.dnaSeqName.clear()
+                self.dnaSeqEditor.setPlainText("")
+                self.dnaTemplate.clear()
             else:
-                self.rnaSeqName.clear(); self.rnaSeqEditor.setPlainText("")
+                self.rnaSeqName.clear()
+                self.rnaSeqEditor.setPlainText("")
+                self.rnaTemplate.clear()
             return
 
         seq = self._get_seq_from_cache(name)
+        tmpl = self._get_template_from_cache(name)
+
         if kind == "protein":
             self.proteinSeqName.setText(name)
             self.proteinSeqEditor.setPlainText(seq)
+            self.proteinTemplate.setText(tmpl)
         elif kind == "dna":
             self.dnaSeqName.setText(name)
             self.dnaSeqEditor.setPlainText(seq)
+            self.dnaTemplate.setText(tmpl)
         else:
             self.rnaSeqName.setText(name)
             self.rnaSeqEditor.setPlainText(seq)
+            self.rnaTemplate.setText(tmpl)
 
     def _save_sequence_from_editor(self, kind: str):
         if kind == "protein":
             name_w = self.proteinSeqName
             seq_w  = self.proteinSeqEditor
             dd     = self.proteinSeqDropdown
+            tmpl_w = self.proteinTemplate
         elif kind == "dna":
             name_w = self.dnaSeqName
             seq_w  = self.dnaSeqEditor
             dd     = self.dnaSeqDropdown
+            tmpl_w = self.dnaTemplate
         else:
             name_w = self.rnaSeqName
             seq_w  = self.rnaSeqEditor
             dd     = self.rnaSeqDropdown
+            tmpl_w = self.rnaTemplate
 
         name = name_w.text().strip()
         seq  = seq_w.toPlainText().strip()
+        tmpl = (tmpl_w.text() or "").strip()
 
         if not name or not seq:
             _msg_warn(self, "Missing input", "Please provide both a name and a sequence.")
@@ -2305,11 +2380,9 @@ class MainWindow(QMainWindow):
             if not _msg_yesno(self, "Overwrite?", f"A saved entry named '{name}' already exists.\nOverwrite it?"):
                 return
 
-        self.sequence_cache[name] = {"sequence": seq, "type": kind.capitalize()}
+        self.sequence_cache[name] = {"sequence": seq, "type": kind.capitalize(), "template": tmpl,}
         _write_json(SEQUENCE_CACHE_FILE, self.sequence_cache)
 
-        # --- Refresh dropdowns WITHOUT triggering load callbacks ---
-        # (refresh triggers currentTextChanged which repopulates the editors)
         was = dd.blockSignals(True)
         try:
             self._refresh_all_dropdowns()
@@ -2317,15 +2390,11 @@ class MainWindow(QMainWindow):
         finally:
             dd.blockSignals(was)
 
-        # --- Clear editors explicitly (now it will "stick") ---
         name_w.clear()
-        seq_w.clear()  # QPlainTextEdit supports clear()
-
-        # Optional: put dropdown back to "Select saved…" so it doesn't look like it's still "active"
-        # dd.setCurrentIndex(0)
+        seq_w.clear()  
+        tmpl_w.clear()
 
         self.log(f"💾 Saved {kind.upper()} sequence: {name}")
-
 
     def _delete_selected_sequence(self, kind: str):
         if kind == "protein":
@@ -2445,7 +2514,7 @@ class MainWindow(QMainWindow):
     def _ligand_entry_to_structure_path(self, entry: dict) -> Optional[Path]:
         """
         Best-effort locate a structure file to open: prefer PDB, else CIF.
-        We follow your old cache convention: <LIGAND_CACHE>/<hash>/LIGAND.(pdb|cif)
+        We follow your old cache convention: <LIGAND_CACHE>/<hash>/LIG.(pdb|cif)
         """
         try:
             lig_hash = entry.get("hash")
@@ -2453,8 +2522,8 @@ class MainWindow(QMainWindow):
                 smiles = entry.get("smiles", "")
                 lig_hash = cache_utils.compute_hash(smiles)
             lig_dir = LIGAND_CACHE / lig_hash
-            pdb_candidates = [lig_dir / "LIGAND.pdb", lig_dir / "ligand.pdb"]
-            cif_candidates = [lig_dir / "LIGAND.cif", lig_dir / "ligand.cif"]
+            pdb_candidates = [lig_dir / "LIG.pdb", lig_dir / "lig.pdb"]
+            cif_candidates = [lig_dir / "LIG.cif", lig_dir / "lig.cif"]
             for p in pdb_candidates:
                 if p.exists():
                     return p
@@ -2484,11 +2553,28 @@ class MainWindow(QMainWindow):
 
         self.log(f"🧩 Opening {target.name} in ChimeraX…")
         try:
-            chimerax_exe = Path(r"C:\Program Files\ChimeraX\bin\ChimeraX.exe")
-            if sys.platform.startswith("win") and chimerax_exe.exists():
-                subprocess.Popen([str(chimerax_exe), str(target)])
-            else:
-                subprocess.Popen(["chimerax", str(target)])
+            fallbacks = []
+            if sys.platform.startswith("win"):
+                fallbacks = [
+                    r"C:\Program Files\ChimeraX\bin\ChimeraX.exe",
+                    r"C:\Program Files\ChimeraX\ChimeraX.exe",
+                    r"C:\Program Files (x86)\ChimeraX\bin\ChimeraX.exe",
+                ]
+
+            exe_argv = self._resolve_viewer_exe(
+                key="chimerax",
+                ui_widget_name="cfgChimeraPath",
+                fallbacks=fallbacks,
+            )
+
+            # If user set a path but it's wrong, give a helpful message once
+            # (Optional: only warn if they actually typed something)
+            if hasattr(self, "cfgChimeraPath"):
+                typed = (self.cfgChimeraPath.text() or "").strip()
+                if typed and not Path(typed).expanduser().exists():
+                    _msg_warn(self, "ChimeraX Not Found", f"Configured ChimeraX path does not exist:\n{typed}\n\nFix it in Config → ChimeraX path.")
+
+            subprocess.Popen(exe_argv + [str(target)])
         except Exception as e:
             _msg_err(self, "Error", f"Failed to open ChimeraX:\n{e}")
 
@@ -2509,15 +2595,30 @@ class MainWindow(QMainWindow):
 
         self.log(f"🧪 Opening {target.name} in PyMOL…")
         try:
-            # user said backend will be added later; this is best-effort
-            subprocess.Popen(["pymol", str(target)])
+            fallbacks = []
+            if sys.platform.startswith("win"):
+                # This varies a lot by install, so keep it minimal:
+                fallbacks = []
+
+            exe_argv = self._resolve_viewer_exe(
+                key="pymol",
+                ui_widget_name="cfgPyMolPath",
+                fallbacks=fallbacks,
+            )
+
+            if hasattr(self, "cfgPyMolPath"):
+                typed = (self.cfgPyMolPath.text() or "").strip()
+                if typed and not Path(typed).expanduser().exists():
+                    _msg_warn(self, "PyMOL Not Found", f"Configured PyMOL path does not exist:\n{typed}\n\nFix it in Config → PyMOL path.")
+
+            subprocess.Popen(exe_argv + [str(target)])
         except Exception as e:
             _msg_err(self, "Error", f"Failed to open PyMOL:\n{e}")
 
     def _update_ligand_preview_from_cache(self, ligand_name: str):
         """
         Simple 2D preview hook:
-        - If af3_pipeline.ligand_utils later writes an image (e.g. LIGAND_2D.png)
+        - If af3_pipeline.ligand_utils later writes an image (e.g. LIG_2D.png)
           into the ligand hash folder, we can display it here.
         """
         entry = self.ligand_cache.get(ligand_name)
@@ -2527,8 +2628,8 @@ class MainWindow(QMainWindow):
         lig_hash = entry.get("hash") or cache_utils.compute_hash(entry.get("smiles", ""))
         lig_dir = LIGAND_CACHE / lig_hash
         img_candidates = [
-            lig_dir / "LIGAND.svg",
-            lig_dir / "LIGAND.png",
+            lig_dir / "LIG.svg",
+            lig_dir / "LIG.png",
         ]
         img = next((p for p in img_candidates if p.exists()), None)
         if not img:
@@ -2576,9 +2677,6 @@ class MainWindow(QMainWindow):
 
         # Output
         self.openOutputButton.clicked.connect(self._open_output_directory)
-
-        # Post-analysis
-        self.rosettaButton.clicked.connect(self._run_post_af3_analysis)
 
         # Notes + logs
         self.notesButton.clicked.connect(self._open_notes_dialog)
@@ -2633,10 +2731,18 @@ class MainWindow(QMainWindow):
         def on_select(refs: MacroEntryRefs, selected_name: str):
             if selected_name in {"Select saved…", "Select saved..."}:
                 return
+
             seq = self._get_seq_from_cache(selected_name)
+            tmpl = self._get_template_from_cache(selected_name)
+
             if getattr(refs, "name", None):
                 refs.name.setText(selected_name)
+
             refs.seq.setPlainText(seq)
+
+            # NEW: template autofill (if the entry widget has it)
+            if getattr(refs, "template", None):
+                refs.template.setText(tmpl)
 
         entry = _build_entry_widget(
             parent=self,
@@ -2820,6 +2926,8 @@ class MainWindow(QMainWindow):
             "dna": dna_list,
             "ligand": ligand,
             "created_at": _now_iso(),
+            "skip_rosetta": bool(self.skipRosettaCheckbox.isChecked()),
+            "multi_seed": bool(self.multiSeedCheckbox.isChecked()),
         }
         return spec
 
@@ -2936,6 +3044,9 @@ class MainWindow(QMainWindow):
         if not jobname:
             _msg_warn(self, "Bad job", "Job spec missing jobname.")
             return
+        
+        self._pending_multi_seed = bool(spec.get("multi_seed", False))
+        self._pending_skip_rosetta = bool(spec.get("skip_rosetta", False))
 
         proteins = spec.get("proteins", []) or []
         rna = spec.get("rna", []) or []
@@ -2961,15 +3072,11 @@ class MainWindow(QMainWindow):
 
     def _on_build_finished(self, json_path: str):
         self.log(f"✅ JSON build complete: {json_path}")
-
-        auto_flag = bool(self.autoAnalyzeCheckbox.isChecked())
-        multi_flag = bool(self.multiSeedCheckbox.isChecked())
+        self._pending_json_path = json_path
 
         self.run_thread = RunThread(
             json_path=json_path,
             job_name=self.current_jobname or "GUI_job",
-            auto_analyze=auto_flag,
-            multi_seed=multi_flag,
         )
         self.run_thread.finished.connect(self._on_run_finished)
         self.run_thread.failed.connect(self._on_run_failed)
@@ -2982,47 +3089,58 @@ class MainWindow(QMainWindow):
         self.addToQueueButton.setEnabled(True)
         self._maybe_run_next()
 
-    def _on_run_finished(self, json_path: str):
-        self.log(f"✅ Run finished: {json_path}")
+    def _on_analysis_done(self):
+        self.log("✅ Analysis complete.")
         self.is_running = False
         self.runButton.setEnabled(True)
         self.addToQueueButton.setEnabled(True)
-
-        # record history
-        self._record_run_history_from_spec(self._build_current_job_spec(), json_path=json_path)
-
-        # auto-analysis if checked (runner may also do it, but keep UI-trigger too)
-        if self.autoAnalyzeCheckbox.isChecked():
-            self.log("🧠 Auto-running post-AF3 analysis…")
-            self._run_post_af3_analysis()
 
         self._refresh_runs_view()
         self._maybe_run_next()
 
+    def _on_analysis_failed(self, err: str):
+        self.log(f"❌ Analysis failed:\n{err}")
+        # Still allow queue to continue
+        self.is_running = False
+        self.runButton.setEnabled(True)
+        self.addToQueueButton.setEnabled(True)
+
+        self._refresh_runs_view()
+        self._maybe_run_next()
+
+    def _on_run_finished(self, json_path: str):
+        self.log(f"✅ AF3 run finished: {json_path}")
+
+        # Record history NOW (or after analysis — your choice). I’d keep it now.
+        self._record_run_history_from_spec(self._build_current_job_spec(), json_path=json_path)
+        self._refresh_runs_view()
+
+        # Always run analysis next
+        job_folder_name = self._guess_selected_job_folder()
+        # If you don't have this helper, simplest is: job_folder_name = self.current_jobname
+        # BUT you already use folder name in RUNS tab based on filesystem.
+        # Recommended: call runner to get job folder name; if not available, fall back to current_jobname.
+
+        job_folder_name = self.current_jobname  # fallback; adjust if your post_analysis expects timestamped folder name
+
+        multi = bool(self._pending_multi_seed)
+        skip = bool(self._pending_skip_rosetta)
+
+        self.log(f"🧠 Post-analysis (always on): skip_rosetta={skip}, multi_seed={multi}")
+
+        self.analysis_thread = AnalysisWorker(job_folder_name, multi_seed=multi, skip_rosetta=skip)
+        self.analysis_thread.log.connect(self.log)
+        self.analysis_thread.done.connect(self._on_analysis_done)
+        self.analysis_thread.error.connect(self._on_analysis_failed)
+        self.analysis_thread.start()
+
     def _on_run_failed(self, err: str):
         self.log(f"❌ Run failed: {err}")
+        traceback.print_exc()
         self.is_running = False
         self.runButton.setEnabled(True)
         self.addToQueueButton.setEnabled(True)
         self._maybe_run_next()
-
-    # =======================
-    # 📊 Post-AF3 analysis
-    # =======================
-    def _run_post_af3_analysis(self):
-        job_name = self.rosettaPath.text().strip() if self.rosettaPath.text().strip() else self.current_jobname.strip()
-        if not job_name:
-            _msg_warn(self, "Missing job", "Please enter a job folder name (or run a job) first.")
-            return
-
-        multi_flag = bool(self.multiSeedCheckbox.isChecked())
-        self.log(f"🧠 Post-AF3 analysis for job '{job_name}'")
-
-        self.analysis_thread = AnalysisWorker(job_name, multi_flag)
-        self.analysis_thread.log.connect(self.log)
-        self.analysis_thread.done.connect(lambda: self.log("✅ Post-AF3 analysis complete."))
-        self.analysis_thread.error.connect(lambda m: (_msg_err(self, "Analysis Error", m), self.log(f"❌ Analysis failed:\n{m}")))
-        self.analysis_thread.start()
 
     # =======================
     # 🪵 Logging
@@ -3069,9 +3187,26 @@ class MainWindow(QMainWindow):
     # 🧾 Runs tab
     # =======================
     def _connect_runs_page(self):
-        self.runsList.currentRowChanged.connect(self._show_selected_run_details)
-        self.runsOpenOutputButton.clicked.connect(self._open_output_directory)
+        self._install_runs_history_table()
+
+        # Selection signal: table drives details; list is fallback
+        if not hasattr(self, "runsHistoryTable"):
+            self.runsList.currentRowChanged.connect(self._show_selected_run_details)
+
+
+        # Keep legacy behaviors
         self.runsLoadToAlphafoldButton.clicked.connect(self._load_selected_run_to_alphafold)
+
+        self._install_runs_toolbar_v2()
+
+        # New behaviors
+        if hasattr(self, "runsAnalyzeButton"):
+            self.runsAnalyzeButton.clicked.connect(self._runs_run_selected_analysis)
+        if hasattr(self, "runsOpenSelectedButton"):
+            self.runsOpenSelectedButton.clicked.connect(self._runs_open_selected_run_folder)
+        if hasattr(self, "runsOpenMetricsButton"):
+            self.runsOpenMetricsButton.clicked.connect(self._runs_open_selected_metrics_csv)
+
 
     def _record_run_history_from_spec(self, spec: dict[str, Any], *, json_path: str):
         if not spec:
@@ -3087,16 +3222,89 @@ class MainWindow(QMainWindow):
         if not isinstance(self.runs_history, list):
             self.runs_history = []
 
-        self.runsList.clear()
-        for rec in self.runs_history:
-            name = (rec.get("jobname") or "(unnamed)").strip()
-            ts = rec.get("finished_at") or rec.get("created_at") or ""
-            self.runsList.addItem(f"{name}    {ts}")
+        # Prefer table UI
+        if hasattr(self, "runsHistoryTable"):
+            t = self.runsHistoryTable
 
-        self.runDetailsText.setPlainText("Select a run to view details…")
+            # Prevent selection-change spam while rebuilding
+            was = t.blockSignals(True)
+            try:
+                t.setRowCount(len(self.runs_history))
+
+                for r, rec in enumerate(self.runs_history):
+                    if not isinstance(rec, dict):
+                        rec = {}
+
+                    name = (rec.get("jobname") or "(unnamed)").strip()
+                    ts = rec.get("finished_at") or rec.get("created_at") or ""
+                    ts_pretty = self._format_run_timestamp_for_list(ts)
+                    # You said you want to remove status column — if you did, just omit col 2
+                    status = str(rec.get("status") or rec.get("state") or "—")
+
+                    t.setItem(r, 0, QTableWidgetItem(name))
+                    t.setItem(r, 1, QTableWidgetItem(ts_pretty))
+                    if t.columnCount() >= 3:
+                        t.setItem(r, 2, QTableWidgetItem(status))
+            finally:
+                t.blockSignals(was)
+
+            if len(self.runs_history) == 0:
+                self.runDetailsText.setPlainText("No runs found yet.")
+                return
+
+            # Auto-select first row, then force-render once after Qt updates selection
+            self._runs_set_selected_row(0)
+            QTimer.singleShot(0, lambda: self._show_selected_run_details(0))
+
+        else:
+            # Fallback to old list
+            lst = self.runsList
+
+            was = lst.blockSignals(True)
+            try:
+                lst.clear()
+                for rec in self.runs_history:
+                    name = (rec.get("jobname") or "(unnamed)").strip() if isinstance(rec, dict) else "(unnamed)"
+                    ts = (rec.get("finished_at") or rec.get("created_at") or "") if isinstance(rec, dict) else ""
+                    ts_pretty = self._format_run_timestamp_for_list(ts)
+                    lst.addItem(f"{name}    {ts_pretty}")
+            finally:
+                lst.blockSignals(was)
+
+            if lst.count() == 0:
+                self.runDetailsText.setPlainText("No runs found yet.")
+                return
+
+            # Ensure a current row exists, then force-render once
+            if lst.currentRow() < 0:
+                lst.setCurrentRow(0)
+            QTimer.singleShot(0, lambda: self._show_selected_run_details(lst.currentRow()))
+
+    def _jobs_root_dir(self) -> Path:
+        # Match runner._user_jobs_root() default
+        return (Path.home() / ".af3_pipeline" / "jobs").resolve()
+
+    def _open_path_in_file_manager(self, p: Path):
+        import subprocess as _subprocess
+        p = Path(p)
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(str(p))  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                _subprocess.call(["open", str(p)])
+            else:
+                _subprocess.call(["xdg-open", str(p)])
+        except Exception as e:
+            _msg_err(self, "Open failed", f"Failed to open:\n{p}\n\n{e}")
+
+    def _runs_after_analysis_refresh(self, job_dir: Path):
+        self.log("✅ RUNS: analysis complete. Refreshing metrics display…")
+        # refresh details panel (will append metrics if present)
+        row = self.runsList.currentRow()
+        self._show_selected_run_details(row)
 
     def _selected_run_record(self) -> Optional[dict[str, Any]]:
-        row = self.runsList.currentRow()
+        row = self._runs_selected_row()
         if row < 0:
             return None
         if row >= len(self.runs_history):
@@ -3108,8 +3316,191 @@ class MainWindow(QMainWindow):
         rec = self._selected_run_record()
         if not rec:
             return
-        pretty = json.dumps(rec, indent=2)
-        self.runDetailsText.setPlainText(pretty)
+
+        from datetime import datetime
+        import html
+        import json
+
+        def _format_ts(ts) -> str:
+            if not ts:
+                return "—"
+            if isinstance(ts, datetime):
+                dt = ts
+            else:
+                s = str(ts).strip()
+                if s.endswith("Z"):
+                    s = s[:-1] + "+00:00"
+                try:
+                    dt = datetime.fromisoformat(s)
+                except Exception:
+                    return str(ts)
+
+            try:
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone()
+            except Exception:
+                pass
+
+            month = dt.strftime("%b")
+            day = dt.day
+            year = dt.year
+            hour24 = dt.hour
+            minute = dt.minute
+            ampm = "AM" if hour24 < 12 else "PM"
+            hour12 = hour24 % 12
+            if hour12 == 0:
+                hour12 = 12
+            return f"{month} {day}, {year} {hour12}:{minute:02d} {ampm}"
+
+        def _pick_ts(rec: dict) -> tuple[str, object]:
+            for k in ("started_at", "timestamp", "created_at", "time", "ts", "datetime"):
+                if k in rec and rec.get(k):
+                    return k, rec.get(k)
+            return "timestamp", None
+
+        jobname = str(rec.get("jobname") or "—")
+        ts_key, ts_val = _pick_ts(rec)
+        ts_pretty = _format_ts(ts_val)
+
+        # Resolve job folder + metrics CSV (define metrics_csv in all paths)
+        job_dir = self._guess_selected_job_folder()
+        metrics_csv = None
+        metrics_block = ""
+        metrics_title = "METRICS"
+
+        if job_dir:
+            metrics_csv = self._runs_find_metrics_csv(job_dir)
+            if metrics_csv:
+                try:
+                    metrics_block = self._runs_metrics_text(metrics_csv)
+                except Exception as e:
+                    metrics_block = f"\n\n===== {metrics_title} =====\n(Error reading metrics: {e})\n"
+            else:
+                metrics_block = f"\n\n===== {metrics_title} =====\n(No metrics CSV found yet under {job_dir})\n"
+        else:
+            metrics_block = f"\n\n===== {metrics_title} =====\n(Could not locate bundled job folder in ~/.af3_pipeline/jobs)\n"
+
+        raw_pretty = json.dumps(rec, indent=2, ensure_ascii=False)
+
+        # Prefer rich HTML if supported
+        if hasattr(self.runDetailsText, "setHtml"):
+            def esc(x) -> str:
+                return html.escape(str(x))
+
+            rows = [
+                ("Job", jobname),
+                ("When", f"{ts_pretty}  (from '{ts_key}')"),
+            ]
+
+            # Optional keys if present
+            for k in ("model", "af_model", "model_name", "seeds", "ligand", "ligand_name"):
+                if rec.get(k):
+                    rows.append((k.replace("_", " ").title(), rec.get(k)))
+
+            if job_dir:
+                rows.append(("Folder", str(job_dir)))
+
+            rows_html = "\n".join(
+                "<tr>"
+                f"<td style='padding:2px 10px 2px 0; color:#666; white-space:nowrap;'><b>{esc(k)}</b></td>"
+                f"<td style='padding:2px 0; word-break:break-all;'>{esc(v)}</td>"
+                "</tr>"
+                for k, v in rows
+            )
+
+            # Metrics: structured HTML if available, else fallback italic
+            try:
+                if metrics_csv:
+                    metrics_html = self._runs_metrics_html(metrics_csv)
+                elif job_dir:
+                    metrics_html = f"<i>No metrics CSV found under {esc(job_dir)}</i>"
+                else:
+                    metrics_html = "<i>Could not locate job folder to search for metrics.</i>"
+            except Exception as e:
+                metrics_html = f"<i>Error rendering metrics:</i> {esc(e)}"
+
+            # Raw record (HTML)
+            raw_html = (
+                f"<pre style='margin:8px 0 0 0; padding:8px; "
+                f"background:rgba(0,0,0,0.04); border-radius:6px; "
+                f"white-space:pre-wrap;'>{esc(raw_pretty)}</pre>"
+            )
+
+            html_text = f"""
+            <div style="font-family:Segoe UI, Arial; font-size:12px;">
+            <div style="font-size:13px; margin-bottom:6px;"><b>Run details</b></div>
+            <table style="border-collapse:collapse;">
+                {rows_html}
+            </table>
+
+            <div style="margin-top:10px;"><b>Metrics</b></div>
+            {metrics_html}
+
+            <div style="margin-top:10px;"><b>Raw record</b></div>
+            {raw_html}
+            </div>
+            """.strip()
+
+            self.runDetailsText.setHtml(html_text)
+            return
+
+        # Fallback: plain text (QPlainTextEdit)
+        out = []
+        out.append("===== RUN DETAILS =====")
+        out.append(f"Job:    {jobname}")
+        out.append(f"When:   {ts_pretty}  (from '{ts_key}')")
+        if job_dir:
+            out.append(f"Folder: {job_dir}")
+        out.append("")
+        out.append(metrics_block.strip())
+        out.append("")
+        out.append("===== RAW RECORD =====")
+        out.append(raw_pretty)
+
+        self.runDetailsText.setPlainText("\n".join(out))
+
+    def _set_protein_atom_combo_from_prot_atom(self, prot_atom: str) -> None:
+        """
+        Restore proteinAtomComboBox from a stored prot_atom value (e.g. 'SG', 'NZ', ...).
+
+        - If prot_atom matches one of ATOM_MAP values, select that label in the combo box.
+        - Otherwise, select Custom… and store it in self.custom_protein_atom.
+        """
+        prot_atom = (prot_atom or "").strip()
+        if not prot_atom:
+            # default to first item (or leave as-is)
+            self.proteinAtomComboBox.setCurrentIndex(0)
+            self.custom_protein_atom = ""
+            return
+
+        # Build inverse: atom -> label
+        inv = {}
+        for label, atom in (ATOM_MAP or {}).items():
+            if atom:
+                inv[str(atom)] = str(label)
+
+        label = inv.get(prot_atom)
+        if label:
+            idx = self.proteinAtomComboBox.findText(label)
+            if idx >= 0:
+                self.proteinAtomComboBox.setCurrentIndex(idx)
+                self.custom_protein_atom = ""
+                return
+
+        # Not found -> Custom…
+        custom_idx = self.proteinAtomComboBox.findText("Custom…")
+        if custom_idx < 0:
+            custom_idx = self.proteinAtomComboBox.findText("Custom...")
+
+        if custom_idx >= 0:
+            self.proteinAtomComboBox.setCurrentIndex(custom_idx)
+        else:
+            # As a last resort, just leave current selection
+            pass
+
+        self.custom_protein_atom = prot_atom
+
+
 
     def _load_selected_run_to_alphafold(self):
         rec = self._selected_run_record()
@@ -3139,6 +3530,7 @@ class MainWindow(QMainWindow):
         self.covalentLigandAtom.setText(lig.get("ligand_atom", "") or "")
         self.ionsInput.setText(lig.get("ions", "") or "")
         self.cofactorsInput.setText(lig.get("cofactors", "") or "")
+        self._set_protein_atom_combo_from_prot_atom(lig.get("prot_atom", "") or "")
 
         # seeds
         seeds = lig.get("modelSeeds")
@@ -3318,66 +3710,7 @@ class MainWindow(QMainWindow):
 
         return s
 
-    def _ui_config_dict(self) -> dict[str, Any]:
-        # docker env text → dict
-        env_text = self.cfgDockerEnv.toPlainText().strip()
-        env_dict: dict[str, str] = {}
-
-        if env_text:
-            try:
-                # allow user to paste YAML mapping
-                loaded = yaml.safe_load(env_text)
-                if isinstance(loaded, dict):
-                    env_dict = {str(k): str(v) for k, v in loaded.items()}
-                else:
-                    raise ValueError("Docker env must be a YAML mapping.")
-            except Exception:
-                # fallback: parse KEY=VALUE lines
-                for line in env_text.splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if ":" in line and "=" not in line:
-                        # allow KEY: VALUE
-                        k, v = line.split(":", 1)
-                    elif "=" in line:
-                        k, v = line.split("=", 1)
-                    else:
-                        continue
-                    env_dict[k.strip()] = v.strip().strip('"').strip("'")
-
-        return {
-            "wsl_distro": self.cfgWslDistro.text().strip(),
-            "gui_dir": self.cfgGuiDir.text().strip(),
-            "cache_root": str(self._profile_root / "cache") if hasattr(self, "_profile_root") else str(Path.home() / ".af3_pipeline" / "cache"),
-            "linux_home_root": self.cfgLinuxHomeRoot.text().strip(),
-
-            "af3_dir": self.cfgAf3Dir.text().strip(),
-            "docker_bin": self.cfgDockerBin.text().strip(),
-            "alphafold_docker_image": self.cfgDockerImage.text().strip(),
-            "alphafold_docker_env": env_dict,
-
-            "msa": {
-                "threads": int(self.cfgMsaThreads.value()),
-                "sensitivity": float(self.cfgMsaSensitivity.value()),
-                "max_seqs": int(self.cfgMsaMaxSeqs.value()),
-                "db": self._posixify(self.cfgMMseqsDB.text()),
-            },
-
-            "ligand": {
-                "n_confs": int(self.cfgLigandNConfs.value()),
-                "seed": int(self.cfgLigandSeed.value()),
-                "prune_rms": float(self.cfgLigandPruneRms.value()),
-                "keep_charge": bool(self.cfgLigandKeepCharge.isChecked()),
-                "require_assigned_stereo": bool(self.cfgLigandRequireStereo.isChecked()),
-                "basename": self.cfgLigandBasename.text().strip() or "LIGAND",
-                "name_default": self.cfgLigandNameDefault.text().strip() or "LIG",
-                "png_size": [int(self.cfgLigandPngW.value()), int(self.cfgLigandPngH.value())],
-                "rdkit_threads": int(self.cfgLigandRdkitThreads.value()),
-            },
-
-            "rosetta_relax_bin": self._posixify(self.cfgRosettaRelaxBin.text()),
-        }
+    
 
     def _apply_config_fields(self):
         try:
@@ -3417,88 +3750,55 @@ class MainWindow(QMainWindow):
                 base[k] = v
         return base
 
-
-
-    def _save_config_yaml(self):
-        try:
-            out = self._config_yaml_path()
-            out.parent.mkdir(parents=True, exist_ok=True)
-
-            template = Path(__file__).resolve().parent / "config_template.yaml"
-            base = self._read_yaml_file(template) if template.exists() else {}
-
-            ui = self._ui_config_dict()
-            merged = self._deep_merge_dicts(base, ui)
-
-            out.write_text(yaml.safe_dump(merged, sort_keys=False), encoding="utf-8")
-            self.log(f"💾 Saved config.yaml: {out}")
-            _msg_info(self, "Saved", f"Saved config.yaml to:\n{out}")
-        except Exception as e:
-            _msg_err(self, "Save failed", str(e))
-
-
-
-    def _load_config_yaml_best_effort(self) -> dict[str, Any]:
-        p = self._config_yaml_path()
-        if p.exists():
-            try:
-                data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-                return data if isinstance(data, dict) else {}
-            except Exception:
-                return {}
-        return {}
-
-    def _reset_config_fields_from_cfg(self):
-        data = self._load_config_yaml_best_effort()
-
-        def g(key, default=""):
-            return (data.get(key, cfg.get(key, default)) if isinstance(data, dict) else cfg.get(key, default))
-
-        self.cfgWslDistro.setText(str(g("wsl_distro", "")))
-        self.cfgLinuxHomeRoot.setText(str(g("linux_home_root", "")))
-
-        self.cfgGuiDir.setText(str(g("gui_dir", "")))
-
-        self.cfgAf3Dir.setText(str(g("af3_dir", "")))
-        self.cfgDockerBin.setText(str(g("docker_bin", "")))
-        self.cfgDockerImage.setText(str(g("alphafold_docker_image", "")))
-
-        env = g("alphafold_docker_env", {})
-        if isinstance(env, dict):
-            self.cfgDockerEnv.setPlainText(yaml.safe_dump(env, sort_keys=False).strip())
-        else:
-            self.cfgDockerEnv.setPlainText("")
-
-        msa = data.get("msa", {}) if isinstance(data.get("msa", {}), dict) else {}
-        self.cfgMsaThreads.setValue(int(msa.get("threads", cfg.get("msa_threads", 10))))
-        self.cfgMsaSensitivity.setValue(float(msa.get("sensitivity", cfg.get("msa_sensitivity", 5.7))))
-        self.cfgMsaMaxSeqs.setValue(int(msa.get("max_seqs", cfg.get("msa_max_seqs", 25))))
-
-        lig = data.get("ligand", {}) if isinstance(data.get("ligand", {}), dict) else {}
-        self.cfgLigandNConfs.setValue(int(lig.get("n_confs", 200)))
-        self.cfgLigandSeed.setValue(int(lig.get("seed", 0)))
-        self.cfgLigandPruneRms.setValue(float(lig.get("prune_rms", 0.25)))
-        self.cfgLigandKeepCharge.setChecked(bool(lig.get("keep_charge", False)))
-        self.cfgLigandRequireStereo.setChecked(bool(lig.get("require_assigned_stereo", False)))
-        self.cfgLigandBasename.setText(str(lig.get("basename", "LIGAND")))
-        self.cfgLigandNameDefault.setText(str(lig.get("name_default", "LIG")))
-        png = lig.get("png_size", [1500, 1200])
-        if isinstance(png, list) and len(png) == 2:
-            self.cfgLigandPngW.setValue(int(png[0]))
-            self.cfgLigandPngH.setValue(int(png[1]))
-        self.cfgLigandRdkitThreads.setValue(int(lig.get("rdkit_threads", 0)))
-
-        self.cfgRosettaRelaxBin.setText(str(g("rosetta_relax_bin", "")))
-        msa_db = msa.get("db", cfg.get("msa.db", ""))
-        self.cfgMMseqsDB.setText(self._posixify(str(msa_db)))
-
-
     # =======================
     # 🏁 entry safety
     # =======================
     def closeEvent(self, event):  # noqa: N802
         # optional: persist queue view etc.
         super().closeEvent(event)
+
+# ==============================================================
+# Attach moved functions back onto MainWindow (no refactor needed)
+# ==============================================================
+
+# ---- Config tab functions ----
+MainWindow._config_help_defs = _config_tab._config_help_defs
+MainWindow._install_config_help = _config_tab._install_config_help
+MainWindow._ui_config_dict = _config_tab._ui_config_dict
+MainWindow._save_config_yaml = _config_tab._save_config_yaml
+MainWindow._load_config_yaml_best_effort = _config_tab._load_config_yaml_best_effort
+MainWindow._reset_config_fields_from_cfg = _config_tab._reset_config_fields_from_cfg
+MainWindow._start_autodetect = _config_tab._start_autodetect
+MainWindow._on_autodetect_done = _config_tab._on_autodetect_done
+MainWindow._config_needs_setup = _config_tab._config_needs_setup
+
+# ---- Runs features ----
+MainWindow._install_runs_toolbar_v2 = _runs_features._install_runs_toolbar_v2
+MainWindow._runs_open_structure = _runs_features._runs_open_structure
+MainWindow._runs_open_selected_run_folder = _runs_features._runs_open_selected_run_folder
+MainWindow._runs_open_selected_relax_folder = _runs_features._runs_open_selected_relax_folder
+MainWindow._runs_open_selected_metrics_csv = _runs_features._runs_open_selected_metrics_csv
+MainWindow._runs_run_selected_analysis = _runs_features._runs_run_selected_analysis
+
+MainWindow._guess_selected_job_folder = _runs_features._guess_selected_job_folder
+MainWindow._runs_find_relax_dir = _runs_features._runs_find_relax_dir
+MainWindow._runs_find_relax_ligand_dir = _runs_features._runs_find_relax_ligand_dir
+MainWindow._runs_find_metrics_csv = _runs_features._runs_find_metrics_csv
+MainWindow._runs_find_af_structure = _runs_features._runs_find_af_structure
+MainWindow._runs_find_rosetta_structure = _runs_features._runs_find_rosetta_structure
+MainWindow._format_run_timestamp_for_list = _runs_features._format_run_timestamp_for_list
+MainWindow._runs_set_selected_row = _runs_features._runs_set_selected_row
+MainWindow._runs_selected_row = _runs_features._runs_selected_row
+MainWindow._install_runs_history_table = _runs_features._install_runs_history_table
+
+# ---- Runs metrics ----
+MainWindow._runs_metrics_text = _runs_metrics._runs_metrics_text
+MainWindow._runs_metrics_html = _runs_metrics._runs_metrics_html
+
+# ---- Viewers ----
+MainWindow._resolve_viewer_exe = _viewers._resolve_viewer_exe
+MainWindow._open_structures_in_pymol = _viewers._open_structures_in_pymol
+MainWindow._open_structures_in_chimerax = _viewers._open_structures_in_chimerax
 
 
 # ==========================

@@ -7,7 +7,7 @@ Converts ligand PDB files to AlphaFold 3–compatible CIF files.
 Preserves:
 - Atom naming (PDB ↔ CIF): CIF atom_id is exactly the PDB atom name
 - Coordinates: taken from PDB
-- Bond order + aromatic flags: prefers SDF sidecar (LIGAND.sdf) if available
+- Bond order + aromatic flags: prefers SDF sidecar (LIG.sdf) if available
 - Stereo config: prefers SDF-based CIP assignment if available
 - Falls back to RDKit-from-PDB and then CONECT-count heuristic if SDF is missing
 
@@ -85,8 +85,8 @@ def convert_pdb_to_cif(key_hash: str, compound_id: str) -> Path:
     compound_id_clean = re.sub(r"[^A-Za-z0-9._]", "", compound_id).strip("_").upper()
 
     ligand_dir = get_cache_dir("ligands", key_hash)
-    ligand_pdb = get_cache_file("ligands", key_hash, "LIGAND.pdb")
-    ligand_sdf = get_cache_file("ligands", key_hash, "LIGAND.sdf")
+    ligand_pdb = get_cache_file("ligands", key_hash, "LIG.pdb")
+    ligand_sdf = get_cache_file("ligands", key_hash, "LIG.sdf")
 
     if not ligand_pdb.exists():
         raise FileNotFoundError(f"Missing ligand PDB at: {ligand_pdb}")
@@ -133,6 +133,7 @@ def convert_pdb_to_cif(key_hash: str, compound_id: str) -> Path:
     # ----------------------------
     bond_info: Dict[Tuple[int, int], Tuple[str, str]] = {}
     atom_stereo_cfg: Dict[int, str] = {}
+    atom_charge: Dict[int, int] = {}
 
     mol_sdf = _load_sdf_mol(ligand_sdf) if ligand_sdf.exists() else None
     if mol_sdf is not None:
@@ -152,7 +153,13 @@ def convert_pdb_to_cif(key_hash: str, compound_id: str) -> Path:
             if idx >= len(idx_to_serial):
                 continue
             serial = idx_to_serial[idx]
+
+            # Stereo (CIP) if available
             atom_stereo_cfg[serial] = a.GetProp("_CIPCode") if a.HasProp("_CIPCode") else "N"
+
+            # Formal charge from SDF (reliable)
+            atom_charge[serial] = int(a.GetFormalCharge())
+
 
     elif ligand_sdf.exists():
         print(f"⚠️ Found SDF but failed to parse; falling back to PDB inference: {ligand_sdf}")
@@ -181,6 +188,7 @@ def convert_pdb_to_cif(key_hash: str, compound_id: str) -> Path:
                         continue
                     serial = info.GetSerialNumber()
                     atom_stereo_cfg[serial] = atom.GetProp("_CIPCode") if atom.HasProp("_CIPCode") else "N"
+                    atom_charge[serial] = int(atom.GetFormalCharge())
         except Exception as e:
             print(f"⚠️ Warning: RDKit PDB parsing failed; using CONECT heuristic: {e}")
 
@@ -219,8 +227,9 @@ def convert_pdb_to_cif(key_hash: str, compound_id: str) -> Path:
 
         for serial, name, element, x, y, z in atoms_sorted:
             stereo = atom_stereo_cfg.get(serial, "N")
-            out.write(f"{compound_id_clean} {name} {element} 0 N {x:.3f} {y:.3f} {z:.3f} {stereo}\n")
-        out.write("#\n")
+            chg = atom_charge.get(serial, 0)
+            out.write(f"{compound_id_clean} {name} {element} {chg} N {x:.3f} {y:.3f} {z:.3f} {stereo}\n")
+
 
         out.write("loop_\n")
         out.write("_chem_comp_bond.atom_id_1\n")
