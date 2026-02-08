@@ -33,6 +33,24 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
+def _msg_info(parent, title, text):
+    QMessageBox.information(parent, title, text)
+
+def _msg_warn(parent, title, text):
+    QMessageBox.warning(parent, title, text)
+
+def _msg_err(parent, title, text):
+    QMessageBox.critical(parent, title, text)
+
+def _msg_yesno(parent, title, text) -> bool:
+    res = QMessageBox.question(
+        parent,
+        title,
+        text,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    return res == QMessageBox.StandardButton.Yes
+
 def _on_autodetect_done(self, s: dict):
     self._autodetect_in_flight = False
     if not s:

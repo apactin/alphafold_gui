@@ -36,7 +36,7 @@ AF3_DOCKER_IMAGE = cfg.get("alphafold_docker_image", "alphafold3")
 
 AF3_DOCKER_ENV = cfg.get("alphafold_docker_env", {
     "XLA_PYTHON_CLIENT_PREALLOCATE": "false",
-    "XLA_CLIENT_MEM_FRACTION": ".50",
+    "XLA_CLIENT_MEM_FRACTION": ".90",
     "XLA_PYTHON_CLIENT_ALLOCATOR": "platform",
     "TF_FORCE_UNIFIED_MEMORY": "1",
     "TF_FORCE_GPU_ALLOW_GROWTH": "true",

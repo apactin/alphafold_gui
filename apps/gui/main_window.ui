@@ -49,6 +49,12 @@
     </property>
     <item>
      <widget class="QFrame" name="sidebarFrame">
+      <property name="maximumSize">
+       <size>
+        <width>400</width>
+        <height>1500</height>
+       </size>
+      </property>
       <property name="font">
        <font>
         <family>Arial</family>
@@ -70,7 +76,7 @@
           </font>
          </property>
          <property name="text">
-          <string>AlphaFold3 Docking Pipeline</string>
+          <string>AlphaFold3 + Rosetta Pipeline</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -90,7 +96,7 @@
          </property>
          <item>
           <property name="text">
-           <string>WELCOME</string>
+           <string>- Introduction</string>
           </property>
           <property name="font">
            <font>
@@ -101,7 +107,7 @@
          </item>
          <item>
           <property name="text">
-           <string>MACROMOLECULES</string>
+           <string>- Save a sequence</string>
           </property>
           <property name="font">
            <font>
@@ -111,7 +117,7 @@
          </item>
          <item>
           <property name="text">
-           <string>LIGANDS</string>
+           <string>- Save a ligand</string>
           </property>
           <property name="font">
            <font>
@@ -121,7 +127,7 @@
          </item>
          <item>
           <property name="text">
-           <string>ALPHAFOLD</string>
+           <string>- Rosetta configuration</string>
           </property>
           <property name="font">
            <font>
@@ -131,7 +137,7 @@
          </item>
          <item>
           <property name="text">
-           <string>RUNS</string>
+           <string>- Setup an AlphaFold run</string>
           </property>
           <property name="font">
            <font>
@@ -141,7 +147,7 @@
          </item>
          <item>
           <property name="text">
-           <string>EXPLANATION</string>
+           <string>- Analysis and history</string>
           </property>
           <property name="font">
            <font>
@@ -151,7 +157,17 @@
          </item>
          <item>
           <property name="text">
-           <string>CONFIG</string>
+           <string>- Useful information</string>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>20</pointsize>
+           </font>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>- Configuration</string>
           </property>
           <property name="font">
            <font>
@@ -237,7 +253,7 @@
      <widget class="QStackedWidget" name="pagesStack">
       <property name="minimumSize">
        <size>
-        <width>1000</width>
+        <width>900</width>
         <height>0</height>
        </size>
       </property>
@@ -248,7 +264,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>5</number>
       </property>
       <widget class="QWidget" name="pageIntro">
        <layout class="QVBoxLayout" name="introPageLayout">
@@ -273,7 +289,7 @@
           <property name="minimumSize">
            <size>
             <width>900</width>
-            <height>900</height>
+            <height>1050</height>
            </size>
           </property>
           <property name="font">
@@ -290,57 +306,58 @@ hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Arial'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;FEATURES&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Prediction (by AlphaFold3) of:&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- proteins, DNA, or RNA&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- post-translational modifications&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- ions and cofactors&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- custom ligands through SMILES (covalent ligands supported)&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Refine AlphaFold output with Rosetta (for ligand bound structures)&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- covalent bond constraint support&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- support for generating constraints from a reference PDB&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;- automatically calculate RMSD between reference PDB and predicted structure&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt; font-weight:700;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;BEFORE USE&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;&lt;br /&gt;Install AlphaFold3, MMSeqs2, and Rosetta. For an in-depth tutorial, visit the &lt;/span&gt;&lt;a href=&quot;https://github.com/apactin/alphafold_gui&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline; color:#0000ff;&quot;&gt;GitHub repo&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt; for this pipeline and follow the setup instructions.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;RUNNING ALPHAFOLD PIPELINE&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Macromolecules&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Save a macromolecule's sequence on the &amp;quot;MACROMOLECULES&amp;quot; page, and then select it on the &amp;quot;ALPHAFOLD&amp;quot; page. Optionally, supply a template PDB ID (e.g. &amp;quot;8S7G&amp;quot;) that will be used to aid AlphaFold3's prediction.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Ligands&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;Custom ligands can be supplied as SMILES on the &amp;quot;LIGANDS&amp;quot; page. Ligand generation can be configured on the &amp;quot;CONFIGS&amp;quot; page. For covalent ligands, the SMILES provided should correspond to the ligand's structure after it has reacted. I.e. for a sulfonyl fluoride warhead, remove the fluorine atom before supplying the SMILES. Confirm geometry and stereochemistry by opening the ligand in a viewer. Note the atom ID for the atom which will be attached to the protein (e.g. &amp;quot;S1&amp;quot;).&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;PTMS/Ions/Cofactors&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;PTMs, ions, and cofactors are all indicated by Chemical Component Dictionary (CCD) codes. The prepopulated lists in the GUI are comprehensive, but not complete. If your desired ion or cofactor is not in the list, look up its CCD code and supply it in the text box.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; text-decoration: underline;&quot;&gt;Running/Post-Analysis&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;By default, the GUI will run RosettaRelax and RosettaLigand Docking immediately after an AlphaFold job completes. This can be toggled, and in addition the user can indicate to run this post-analysis on the top scoring model of each seed.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;&lt;br /&gt;Install AlphaFold3, MMSeqs2, and Rosetta. For an in-depth tutorial, visit the &lt;/span&gt;&lt;a href=&quot;https://github.com/apactin/alphafold_gui&quot;&gt;&lt;span style=&quot; font-size:12pt; text-decoration: underline; color:#0000ff;&quot;&gt;GitHub repo&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt; for this pipeline and follow the setup instructions. AlphaFold3 weights must be obtained directly from Google DeepMind.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;RUNNING ALPHAFOLD PIPELIN&lt;/span&gt;&lt;span style=&quot; font-size:12pt; font-weight:700;&quot;&gt;E&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;Macromolecules&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Save a macromolecule's sequence, and then select it on the &amp;quot;ALPHAFOLD&amp;quot; page. Optionally, supply a template PDB ID (e.g. &amp;quot;8S7G&amp;quot;) that will be used to aid AlphaFold3's prediction. &lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;Ligands&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Custom ligands, supplied as SMILES, are embedded with RDKit. Ligand generation can be configured on the &amp;quot;CONFIGS&amp;quot; page. For covalent ligands, the SMILES provided should correspond to the ligand's structure after it has reacted. I.e. for a sulfonyl fluoride warhead, remove the fluorine atom before supplying the SMILES. Confirm geometry and stereochemistry by opening the ligand in a viewer. Note the atom ID for the atom which will be attached to the protein (e.g. &amp;quot;S1&amp;quot;).&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;PTMS/Ions/Cofactors&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;PTMs, ions, and cofactors are all indicated by Chemical Component Dictionary (CCD) codes. The prepopulated lists in the GUI are comprehensive, but not complete. If your desired ion or cofactor is not in the list, look up its CCD code and supply it in the text box.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;Running/Post-Analysis&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Jobs can be run automatically or queued to be run in succession. By default, Rosetta FastRelax (with constraints if a ligand is present) are applied after an AlphaFold run. Access run history in the &amp;quot;Analysis and history&amp;quot; page. From there, you can run Rosetta analysis on AlphaFold jobs.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;Rosetta Constraints&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt; font-style:italic;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;AlphaFold3 does a poor job with covalent bond geometry. Applying constraints through Rosetta enables us to enforce bond angles and lengths. Through the &amp;quot;Rosetta configuration&amp;quot; page, you can automatically generate constraints from a reference PDB. If one is not available for your protein/ligand complex, you could instead use a PDB with the same residue/warhead.&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:700;&quot;&gt;INTERPRETING RESULTS&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:14pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;AlphaFold3: Abramson, Josh, Jonas Adler, Jack Dunger, et al. “Accurate Structure Prediction of Biomolecular Interactions with AlphaFold 3.” &lt;/span&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;Nature&lt;/span&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt; 630, no. 8016 (2024): 493–500. &lt;/span&gt;&lt;a href=&quot;https://doi.org/10.1038/s41586-024-07487-w&quot;&gt;&lt;span style=&quot; font-size:12pt; text-decoration: underline; color:#0000ff;&quot;&gt;https://doi.org/10.1038/s41586-024-07487-w&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;. &lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;MMseqs2: Steinegger, Martin, and Johannes Söding. “MMseqs2 Enables Sensitive Protein Sequence Searching for the Analysis of Massive Data Sets.” &lt;/span&gt;&lt;span style=&quot; font-size:12pt; font-style:italic;&quot;&gt;Nature Biotechnology&lt;/span&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt; 35, no. 11 (2017): 1026–28. &lt;/span&gt;&lt;a href=&quot;https://doi.org/10.1038/nbt.3988&quot;&gt;&lt;span style=&quot; font-size:12pt; text-decoration: underline; color:#0000ff;&quot;&gt;https://doi.org/10.1038/nbt.3988&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;. &lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Rosetta Commons. &lt;/span&gt;&lt;a href=&quot;https://rosettacommons.org/&quot;&gt;&lt;span style=&quot; font-size:12pt; text-decoration: underline; color:#0000ff;&quot;&gt;https://rosettacommons.org/&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;. &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
           <property name="openExternalLinks">
            <bool>true</bool>
           </property>
          </widget>
-        </item>
-        <item>
-         <spacer name="introBottomSpacer">
-          <property name="font">
-           <font>
-            <family>Arial</family>
-            <pointsize>10</pointsize>
-           </font>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>40</height>
-           </size>
-          </property>
-         </spacer>
         </item>
         <item>
          <widget class="QLabel" name="label">
@@ -750,6 +767,716 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="pageRosetta">
+       <layout class="QVBoxLayout" name="pageRosettaLayout">
+        <property name="spacing">
+         <number>12</number>
+        </property>
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QScrollArea" name="rosettaConfigsScrollArea">
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
+          </property>
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <widget class="QWidget" name="rosettaConfigsScrollContents">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>962</width>
+             <height>1209</height>
+            </rect>
+           </property>
+           <layout class="QVBoxLayout" name="rosettaScrollContentsVBox">
+            <property name="spacing">
+             <number>12</number>
+            </property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QGroupBox" name="rosettaDictsGroup">
+              <property name="title">
+               <string/>
+              </property>
+              <layout class="QVBoxLayout" name="rosettaDictsVBox">
+               <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="font">
+                  <font>
+                   <family>Arial Black</family>
+                   <pointsize>20</pointsize>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>Rosetta configuration</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QGroupBox" name="rosettaScriptsStageGroup">
+                 <property name="title">
+                  <string>RosettaScripts</string>
+                 </property>
+                 <layout class="QVBoxLayout" name="rosettaScriptsStageVBox">
+                  <property name="spacing">
+                   <number>12</number>
+                  </property>
+                  <item>
+                   <widget class="QGroupBox" name="rosettaScriptsProtocolGroup">
+                    <property name="title">
+                     <string>Protocol</string>
+                    </property>
+                    <layout class="QGridLayout" name="rosettaScriptsProtocolGrid">
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="rsNeighborDistLabel">
+                       <property name="text">
+                        <string>neighbor_dist</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QDoubleSpinBox" name="rsNeighborDistSpin">
+                       <property name="decimals">
+                        <number>2</number>
+                       </property>
+                       <property name="minimum">
+                        <double>0.000000000000000</double>
+                       </property>
+                       <property name="maximum">
+                        <double>9999.000000000000000</double>
+                       </property>
+                       <property name="value">
+                        <double>6.000000000000000</double>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2" colspan="2">
+                      <widget class="QLabel" name="rsNeighborDistHint">
+                       <property name="text">
+                        <string>Ligand neighborhood cutoff (Å) used to build the interface region.</string>
+                       </property>
+                       <property name="wordWrap">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QLabel" name="rsNstructNoncovLabel">
+                       <property name="text">
+                        <string>nstruct (noncovalent)</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="1">
+                      <widget class="QSpinBox" name="rsNstructNoncovSpin">
+                       <property name="minimum">
+                        <number>1</number>
+                       </property>
+                       <property name="maximum">
+                        <number>9999</number>
+                       </property>
+                       <property name="value">
+                        <number>5</number>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QLabel" name="rsNstructCovLabel">
+                       <property name="text">
+                        <string>nstruct (covalent)</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QSpinBox" name="rsNstructCovSpin">
+                       <property name="minimum">
+                        <number>1</number>
+                       </property>
+                       <property name="maximum">
+                        <number>9999</number>
+                       </property>
+                       <property name="value">
+                        <number>1</number>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="0">
+                      <widget class="QGroupBox" name="rsLocalRbGroup">
+                       <property name="title">
+                        <string>Local rigid-body (local_rb)</string>
+                       </property>
+                       <layout class="QGridLayout" name="rsLocalRbGrid">
+                        <item row="0" column="0">
+                         <widget class="QCheckBox" name="rsLocalRbEnabledCheck">
+                          <property name="text">
+                           <string>enabled</string>
+                          </property>
+                          <property name="checked">
+                           <bool>true</bool>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="1" column="0">
+                         <widget class="QLabel" name="rsRbTranslateAngLabel">
+                          <property name="text">
+                           <string>translate Å</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="1" column="1">
+                         <widget class="QDoubleSpinBox" name="rsRbTranslateAngSpin">
+                          <property name="decimals">
+                           <number>2</number>
+                          </property>
+                          <property name="minimum">
+                           <double>0.000000000000000</double>
+                          </property>
+                          <property name="maximum">
+                           <double>999.000000000000000</double>
+                          </property>
+                          <property name="value">
+                           <double>1.500000000000000</double>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="1" column="2">
+                         <widget class="QLabel" name="rsRbTranslateCyclesLabel">
+                          <property name="text">
+                           <string>cycles</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="1" column="3">
+                         <widget class="QSpinBox" name="rsRbTranslateCyclesSpin">
+                          <property name="minimum">
+                           <number>0</number>
+                          </property>
+                          <property name="maximum">
+                           <number>999999</number>
+                          </property>
+                          <property name="value">
+                           <number>25</number>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="2" column="0">
+                         <widget class="QLabel" name="rsRbRotateDegLabel">
+                          <property name="text">
+                           <string>rotate °</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="2" column="1">
+                         <widget class="QDoubleSpinBox" name="rsRbRotateDegSpin">
+                          <property name="decimals">
+                           <number>1</number>
+                          </property>
+                          <property name="minimum">
+                           <double>0.000000000000000</double>
+                          </property>
+                          <property name="maximum">
+                           <double>3600.000000000000000</double>
+                          </property>
+                          <property name="value">
+                           <double>15.000000000000000</double>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="2" column="2">
+                         <widget class="QLabel" name="rsRbRotateCyclesLabel">
+                          <property name="text">
+                           <string>cycles</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="2" column="3">
+                         <widget class="QSpinBox" name="rsRbRotateCyclesSpin">
+                          <property name="minimum">
+                           <number>0</number>
+                          </property>
+                          <property name="maximum">
+                           <number>999999</number>
+                          </property>
+                          <property name="value">
+                           <number>50</number>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="3" column="0">
+                         <widget class="QCheckBox" name="rsRbSlideTogetherCheck">
+                          <property name="text">
+                           <string>slide_together</string>
+                          </property>
+                          <property name="checked">
+                           <bool>true</bool>
+                          </property>
+                         </widget>
+                        </item>
+                       </layout>
+                      </widget>
+                     </item>
+                     <item row="3" column="1" colspan="3">
+                      <spacer name="rsProtocolRightSpacer">
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
+                     </item>
+                     <item row="4" column="0">
+                      <widget class="QGroupBox" name="rsHighresGroup">
+                       <property name="title">
+                        <string>HighResDocker (highres)</string>
+                       </property>
+                       <layout class="QGridLayout" name="rsHighresGrid">
+                        <item row="0" column="0">
+                         <widget class="QLabel" name="rsHighresCyclesLabel">
+                          <property name="text">
+                           <string>cycles</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="0" column="1">
+                         <widget class="QSpinBox" name="rsHighresCyclesSpin">
+                          <property name="minimum">
+                           <number>0</number>
+                          </property>
+                          <property name="maximum">
+                           <number>999999</number>
+                          </property>
+                          <property name="value">
+                           <number>6</number>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="0" column="2">
+                         <widget class="QLabel" name="rsHighresRepackLabel">
+                          <property name="text">
+                           <string>repack_every_nth</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item row="0" column="3">
+                         <widget class="QSpinBox" name="rsHighresRepackSpin">
+                          <property name="minimum">
+                           <number>1</number>
+                          </property>
+                          <property name="maximum">
+                           <number>999999</number>
+                          </property>
+                          <property name="value">
+                           <number>3</number>
+                          </property>
+                         </widget>
+                        </item>
+                       </layout>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item>
+                   <layout class="QGridLayout" name="rosettaScriptsScoreGrid">
+                    <item row="0" column="0">
+                     <widget class="QLabel" name="rsSfxnSoftLabel">
+                      <property name="text">
+                       <string>Scorefxn soft</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="1">
+                     <widget class="QLineEdit" name="rsSfxnSoftInput">
+                      <property name="placeholderText">
+                       <string>ligand_soft_rep</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="0">
+                     <widget class="QLabel" name="rsSfxnHiresLabel">
+                      <property name="text">
+                       <string>Scorefxn hires</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="1">
+                     <widget class="QLineEdit" name="rsSfxnHiresInput">
+                      <property name="placeholderText">
+                       <string>ligand</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="0">
+                     <widget class="QLabel" name="rsPackingFlagsLabel">
+                      <property name="text">
+                       <string>Packing flags</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="1">
+                     <widget class="QLineEdit" name="rsPackingFlagsInput">
+                      <property name="placeholderText">
+                       <string>-ex1 -ex2 -ex2aro -use_input_sc -flip_HNQ</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QGroupBox" name="genRosettaParamsGroup">
+                 <property name="title">
+                  <string>Covalent constraints generator</string>
+                 </property>
+                 <layout class="QVBoxLayout" name="genRosettaParamsVBox">
+                  <property name="spacing">
+                   <number>10</number>
+                  </property>
+                  <item>
+                   <widget class="QLabel" name="grpHintLabel">
+                    <property name="text">
+                     <string>Generates AtomPair/Angle/Dihedral constraints by measuring geometry in a reference protein+ligand PDB and mapping ligand atom names from a raw ligand file.</string>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <layout class="QGridLayout" name="grpGrid">
+                    <item row="0" column="0">
+                     <widget class="QLabel" name="grpRefPdbLabel">
+                      <property name="text">
+                       <string>--ref-pdb</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="1" colspan="2">
+                     <widget class="QLineEdit" name="grpRefPdbInput">
+                      <property name="placeholderText">
+                       <string>/path/to/reference_protein_ligand.pdb</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="3">
+                     <widget class="QPushButton" name="grpRefPdbBrowseBtn">
+                      <property name="text">
+                       <string>Browse…</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="0">
+                     <widget class="QLabel" name="grpLigandCacheLabel">
+                      <property name="text">
+                       <string>--ligand-cache</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="1" colspan="2">
+                     <widget class="QComboBox" name="grpLigandDropdown">
+                      <property name="placeholderText">
+                       <string>Select ligand</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="0">
+                     <widget class="QLabel" name="grpLigandNameLabel">
+                      <property name="text">
+                       <string>--ligand-name</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="1">
+                     <widget class="QLineEdit" name="grpLigandNameInput">
+                      <property name="placeholderText">
+                       <string>LIG</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="2">
+                     <widget class="QLabel" name="grpRefLigResnameLabel">
+                      <property name="text">
+                       <string>--ref-ligand-resname (optional)</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="3">
+                     <widget class="QLineEdit" name="grpRefLigResnameInput">
+                      <property name="placeholderText">
+                       <string>2P5 / UNK / A5L … (leave blank to auto-guess)</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="3" column="0">
+                     <widget class="QLabel" name="grpChainLabel">
+                      <property name="text">
+                       <string>--chain</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="3" column="1">
+                     <widget class="QLineEdit" name="grpChainInput">
+                      <property name="maxLength">
+                       <number>2</number>
+                      </property>
+                      <property name="placeholderText">
+                       <string>A</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="3" column="2">
+                     <widget class="QLabel" name="grpResnumLabel">
+                      <property name="text">
+                       <string>--resnum</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="3" column="3">
+                     <widget class="QSpinBox" name="grpResnumSpin">
+                      <property name="minimum">
+                       <number>-999999</number>
+                      </property>
+                      <property name="maximum">
+                       <number>999999</number>
+                      </property>
+                      <property name="value">
+                       <number>0</number>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="4" column="0">
+                     <widget class="QLabel" name="grpRestypeLabel">
+                      <property name="text">
+                       <string>--restype</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="4" column="1">
+                     <widget class="QLineEdit" name="grpRestypeInput">
+                      <property name="maxLength">
+                       <number>3</number>
+                      </property>
+                      <property name="placeholderText">
+                       <string>HIS</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="4" column="2">
+                     <widget class="QLabel" name="grpProteinAtomLabel">
+                      <property name="text">
+                       <string>--protein-atom</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="4" column="3">
+                     <widget class="QLineEdit" name="grpProteinAtomInput">
+                      <property name="placeholderText">
+                       <string>ND1</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="5" column="0">
+                     <widget class="QLabel" name="grpLigandAtomTrueLabel">
+                      <property name="text">
+                       <string>--ligand-atom-true</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="5" column="1" colspan="3">
+                     <widget class="QLineEdit" name="grpLigandAtomTrueInput">
+                      <property name="placeholderText">
+                       <string>S1 (true atom name from raw ligand file / AF view)</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="6" column="0">
+                     <widget class="QLabel" name="grpSdDistLabel">
+                      <property name="text">
+                       <string>--sd-dist (Å)</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="6" column="1">
+                     <widget class="QDoubleSpinBox" name="grpSdDistSpin">
+                      <property name="decimals">
+                       <number>3</number>
+                      </property>
+                      <property name="minimum">
+                       <double>0.000000000000000</double>
+                      </property>
+                      <property name="maximum">
+                       <double>999.000000000000000</double>
+                      </property>
+                      <property name="value">
+                       <double>0.100000000000000</double>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="6" column="2">
+                     <widget class="QLabel" name="grpSdAngLabel">
+                      <property name="text">
+                       <string>--sd-ang (deg)</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="6" column="3">
+                     <widget class="QDoubleSpinBox" name="grpSdAngSpin">
+                      <property name="decimals">
+                       <number>2</number>
+                      </property>
+                      <property name="minimum">
+                       <double>0.000000000000000</double>
+                      </property>
+                      <property name="maximum">
+                       <double>999.000000000000000</double>
+                      </property>
+                      <property name="value">
+                       <double>5.000000000000000</double>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="7" column="0">
+                     <widget class="QLabel" name="grpSdDihLabel">
+                      <property name="text">
+                       <string>--sd-dih (deg)</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="7" column="1">
+                     <widget class="QDoubleSpinBox" name="grpSdDihSpin">
+                      <property name="decimals">
+                       <number>2</number>
+                      </property>
+                      <property name="minimum">
+                       <double>0.000000000000000</double>
+                      </property>
+                      <property name="maximum">
+                       <double>9999.000000000000000</double>
+                      </property>
+                      <property name="value">
+                       <double>10.000000000000000</double>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="7" column="2">
+                     <widget class="QLabel" name="grpOutLabel">
+                      <property name="text">
+                       <string>--out</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="7" column="3">
+                     <widget class="QLineEdit" name="grpOutInput">
+                      <property name="placeholderText">
+                       <string>e.g. &quot;2-31-5&quot;</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="grpButtonsRow">
+                    <item>
+                     <widget class="QPushButton" name="grpShowCmdBtn">
+                      <property name="text">
+                       <string>Show command</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="grpRunBtn">
+                      <property name="text">
+                       <string>Generate constraints</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <spacer name="grpButtonsSpacer">
+                      <property name="orientation">
+                       <enum>Qt::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>40</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="grpStatusLabel">
+                      <property name="text">
+                       <string>Status: idle</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="rosettaDictsStatusLabel">
+                 <property name="text">
+                  <string>Status: idle</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="rosettaBottomSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
       <widget class="QWidget" name="pageAlphafold">
        <layout class="QVBoxLayout" name="alphafoldPageLayout">
         <property name="spacing">
@@ -857,7 +1584,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>936</width>
+                    <width>900</width>
                     <height>283</height>
                    </rect>
                   </property>
@@ -914,8 +1641,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>247</width>
-                    <height>33</height>
+                    <width>936</width>
+                    <height>283</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="dnaContainerLayout">
@@ -971,8 +1698,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>247</width>
-                    <height>33</height>
+                    <width>936</width>
+                    <height>283</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="rnaContainerLayout">
@@ -1175,10 +1902,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <item>
               <widget class="QCheckBox" name="skipRosettaCheckbox">
                <property name="text">
-                <string>Skip Rosetta analysis</string>
+                <string>Skip RosettaRelax</string>
                </property>
                <property name="checked">
                 <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="skipRosettaLigandCheckbox">
+               <property name="text">
+                <string>Skip RosettaLigand</string>
                </property>
               </widget>
              </item>
@@ -1189,6 +1923,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </property>
                <property name="checked">
                 <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="constraintsDropdown_2">
+               <property name="minimumSize">
+                <size>
+                 <width>200</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="placeholderText">
+                <string>set custom constraints</string>
                </property>
               </widget>
              </item>
@@ -1365,17 +2112,451 @@ li.checked::marker { content: &quot;\2612&quot;; }
           <item>
            <widget class="QGroupBox" name="runsListGroup">
             <property name="title">
-             <string>Past Runs</string>
+             <string>Previous runs</string>
             </property>
             <layout class="QVBoxLayout" name="runsListLayout">
              <item>
-              <widget class="QListWidget" name="runsList">
+              <layout class="QHBoxLayout" name="horizontalLayout_2">
+               <item>
+                <widget class="QLineEdit" name="runsSearchInput">
+                 <property name="placeholderText">
+                  <string>Search jobname...</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="runsRefreshButton">
+                 <property name="text">
+                  <string>Refresh list</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="runsOpenJSONButton">
+                 <property name="text">
+                  <string>Open JSON</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="runsDeleteHistoryButton">
+                 <property name="text">
+                  <string>Delete</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QTableWidget" name="runsHistoryTable">
                <property name="minimumSize">
                 <size>
                  <width>0</width>
-                 <height>250</height>
+                 <height>300</height>
                 </size>
                </property>
+               <attribute name="horizontalHeaderCascadingSectionResizes">
+                <bool>false</bool>
+               </attribute>
+               <attribute name="horizontalHeaderDefaultSectionSize">
+                <number>192</number>
+               </attribute>
+               <attribute name="verticalHeaderStretchLastSection">
+                <bool>false</bool>
+               </attribute>
+               <column>
+                <property name="text">
+                 <string>Job</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Finished</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Seed</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Relax</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Ligand</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupBox">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>100</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Run options</string>
+               </property>
+               <widget class="QWidget" name="gridLayoutWidget_4">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>20</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QGridLayout" name="runsGrid">
+                 <item row="0" column="0">
+                  <widget class="QPushButton" name="runsLoadToAlphafoldButton">
+                   <property name="text">
+                    <string>↩ Load parameters to AlphaFold run page</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QPushButton" name="runsOpenSelectedButton">
+                   <property name="text">
+                    <string>📂 Open Selected Run</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="2">
+                  <widget class="QPushButton" name="runsOpenMetricsButton">
+                   <property name="text">
+                    <string>📊 Open Metrics CSV</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="gridLayoutWidget_5">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>60</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QGridLayout" name="viewerGrid">
+                 <item row="0" column="2">
+                  <widget class="QPushButton" name="openRosetta">
+                   <property name="text">
+                    <string>Open Rosetta</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0">
+                  <widget class="QComboBox" name="viewerDropdown">
+                   <item>
+                    <property name="text">
+                     <string>ChimeraX</string>
+                    </property>
+                   </item>
+                   <item>
+                    <property name="text">
+                     <string>PyMol</string>
+                    </property>
+                   </item>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QPushButton" name="openAlphafold">
+                   <property name="text">
+                    <string>Open AlphaFold</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="3">
+                  <widget class="QPushButton" name="openBoth">
+                   <property name="text">
+                    <string>Open Both</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupBox_2">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>100</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Rosetta options</string>
+               </property>
+               <widget class="QWidget" name="gridLayoutWidget_10">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>20</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_8">
+                 <item row="0" column="0">
+                  <widget class="QPushButton" name="runsAnalyzeButton">
+                   <property name="text">
+                    <string>🧠 Run Analysis</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QComboBox" name="constraintsDropdown">
+                   <property name="placeholderText">
+                    <string>Set customs constraints</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="horizontalLayoutWidget_2">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>60</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QHBoxLayout" name="horizontalLayout_4">
+                 <item>
+                  <widget class="QCheckBox" name="runLigandCheckbox">
+                   <property name="text">
+                    <string>Run Ligand</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="runRelaxcheckbox">
+                   <property name="text">
+                    <string>Run Relax</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="runsMultiSeedCheckbox">
+                   <property name="text">
+                    <string>Multi-seed</string>
+                   </property>
+                   <property name="checked">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="horizontalSpacer">
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>40</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </widget>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupBox_3">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>150</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Compare PDBs</string>
+               </property>
+               <widget class="QWidget" name="gridLayoutWidget_9">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>60</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_7">
+                 <item row="0" column="4">
+                  <widget class="QPushButton" name="browseQueryPDBPathButton">
+                   <property name="text">
+                    <string>Browse</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="label_5">
+                   <property name="text">
+                    <string>Query PDB path:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="6">
+                  <widget class="QLineEdit" name="queryLigName">
+                   <property name="text">
+                    <string/>
+                   </property>
+                   <property name="placeholderText">
+                    <string>e.g. &quot;LIG&quot;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="5">
+                  <widget class="QLabel" name="label_7">
+                   <property name="text">
+                    <string>Ligand name:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="2">
+                  <widget class="QLineEdit" name="queryPDBPath">
+                   <property name="minimumSize">
+                    <size>
+                     <width>400</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <spacer name="horizontalSpacer_2">
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                   <property name="sizeType">
+                    <enum>QSizePolicy::Minimum</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>17</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="gridLayoutWidget_3">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>20</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_6">
+                 <item row="0" column="1">
+                  <widget class="QLineEdit" name="refPDBPath">
+                   <property name="minimumSize">
+                    <size>
+                     <width>400</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="5">
+                  <widget class="QLineEdit" name="refLigName">
+                   <property name="placeholderText">
+                    <string>e.g. &quot;SF4&quot;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="3">
+                  <widget class="QPushButton" name="browseRefPDBPathButton">
+                   <property name="text">
+                    <string>Browse</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="label_4">
+                   <property name="text">
+                    <string>Reference PDB path:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="4">
+                  <widget class="QLabel" name="label_6">
+                   <property name="text">
+                    <string>Ligand name:</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="gridLayoutWidget_6">
+                <property name="geometry">
+                 <rect>
+                  <x>10</x>
+                  <y>100</y>
+                  <width>931</width>
+                  <height>31</height>
+                 </rect>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_4">
+                 <item row="0" column="3">
+                  <widget class="QPushButton" name="runComparisonButton">
+                   <property name="minimumSize">
+                    <size>
+                     <width>200</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Run comparison</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="2">
+                  <widget class="QLineEdit" name="comparisonOutPath">
+                   <property name="placeholderText">
+                    <string>if none set, defaults to query PDB path directory</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="label_8">
+                   <property name="text">
+                    <string>Set output path:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <spacer name="horizontalSpacer_3">
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                   <property name="sizeType">
+                    <enum>QSizePolicy::Minimum</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>23</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </widget>
               </widget>
              </item>
              <item>
@@ -1383,7 +2564,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                <property name="minimumSize">
                 <size>
                  <width>0</width>
-                 <height>850</height>
+                 <height>200</height>
                 </size>
                </property>
                <property name="title">
@@ -1392,62 +2573,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
                <layout class="QVBoxLayout" name="runDetailsLayout">
                 <item>
                  <widget class="QTextBrowser" name="runDetailsText"/>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="runDetailsButtonsRow">
-                  <item>
-                   <widget class="QPushButton" name="runsLoadToAlphafoldButton">
-                    <property name="text">
-                     <string>↩ Load into Alphafold</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="runsOpenSelectedButton">
-                    <property name="text">
-                     <string>📂 Open Selected Run</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="runsOpenOutputButton">
-                    <property name="text">
-                     <string>Open Output Directory</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QCheckBox" name="runsMultiSeedCheckbox">
-                    <property name="text">
-                     <string>Multi-seed</string>
-                    </property>
-                    <property name="checked">
-                     <bool>false</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="runsAnalyzeButton">
-                    <property name="text">
-                     <string>🧠 Run Analysis</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="runsOpenRelaxButton">
-                    <property name="text">
-                     <string>🧬 Open Relax Dir</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="runsOpenMetricsButton">
-                    <property name="text">
-                     <string>📊 Open Metrics CSV</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
                 </item>
                </layout>
               </widget>
@@ -1484,9 +2609,21 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <rect>
           <x>15</x>
           <y>71</y>
-          <width>981</width>
+          <width>925</width>
           <height>1031</height>
          </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>925</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>925</width>
+          <height>16777215</height>
+         </size>
         </property>
         <property name="font">
          <font>

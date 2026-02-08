@@ -44,7 +44,7 @@ from .cache_utils import compute_hash, get_cache_dir
 # =========================================
 LIGAND_BASENAME = str(cfg.get("ligand_basename", "LIG"))
 LIGAND_NAME_DEFAULT = str(cfg.get("ligand_name_default", "LIG"))
-LIGAND_PNG_SIZE = tuple(cfg.get("ligand_png_size", (420, 320)))
+LIGAND_PNG_SIZE = tuple(cfg.get("ligand_png_size", (1400, 1000)))
 
 # =========================================
 # 🔄 Canonical SMILES + soft sanitize

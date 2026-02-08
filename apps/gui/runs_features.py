@@ -102,6 +102,8 @@ def _install_runs_toolbar_v2(self) -> None:
       - create new toolbar buttons
       - insert the toolbar into the layout that contains the old load button
     """
+    if hasattr(self, "runsSearchInput") or hasattr(self, "runsRefreshButton") or hasattr(self, "viewerDropdown"):
+        return
     # If a broken toolbar exists from a previous attempt, remove it cleanly
     old = getattr(self, "_runsToolbarV2", None)
     if old is not None:
@@ -190,12 +192,25 @@ def _install_runs_toolbar_v2(self) -> None:
     self._runs_chk_multiseed = QCheckBox("Multi-seed", self._runsToolbarV2)
     self._runs_chk_multiseed.setObjectName("runsToolbarMultiSeedCheckbox")
 
+    self._runs_chk_relax = QCheckBox("RosettaRelax", self._runsToolbarV2)
+    self._runs_chk_relax.setObjectName("runsRelaxCheckBox")
+    self._runs_chk_relax.setChecked(True)
+
+    self._runs_chk_ligand = QCheckBox("RosettaLigand", self._runsToolbarV2)
+    self._runs_chk_ligand.setObjectName("runsLigandCheckBox")
+    self._runs_chk_ligand.setChecked(True)
+
     row1.addWidget(self._runs_btn_load)
     row1.addWidget(self._runs_btn_open_selected)
     row1.addWidget(self._runs_btn_open_metrics)
-    row1.addWidget(self._runs_chk_multiseed)
     row1.addStretch(1)
+    row1.addWidget(QLabel("Analyze run:", self._runsToolbarV2))
     row1.addWidget(self._runs_btn_analyze)
+    row1.addWidget(self._runs_chk_multiseed)
+    row1.addWidget(self._runs_chk_relax)
+    row1.addWidget(self._runs_chk_ligand)
+    
+    
 
     # Row 2
     row2 = QHBoxLayout()
@@ -277,6 +292,8 @@ def _install_runs_toolbar_v2(self) -> None:
 
     # Store checkbox where your analysis method expects it
     self.runsMultiSeedCheckbox = self._runs_chk_multiseed
+    self.runsRelaxCheckBox = self._runs_chk_relax
+    self.runsLigandCheckBox = self._runs_chk_ligand
 
     self._runs_btn_analyze.clicked.connect(self._runs_run_selected_analysis)
 
@@ -316,7 +333,8 @@ def _runs_open_structure(self, *, which: str) -> None:
         paths = [af, ro]
         align = True
 
-    viewer = (self.runsViewerDropdown.currentText() or "").strip().lower()
+    dd = getattr(self, "viewerDropdown", None) or getattr(self, "runsViewerDropdown", None)
+    viewer = (dd.currentText() if dd else "").strip().lower()
     if "pymol" in viewer:
         self._open_structures_in_pymol(paths=paths, align=align)
     else:
@@ -374,12 +392,42 @@ def _runs_run_selected_analysis(self):
             multi = bool(self.runsMultiSeedCheckbox.isChecked())
     except Exception:
         multi = False
+        
+    do_relax = True
+    do_ligand = True
+
+    try:
+        if hasattr(self, "runRelaxcheckbox") and self.runRelaxcheckbox is not None:
+            do_relax = bool(self.runRelaxcheckbox.isChecked())
+        elif hasattr(self, "runsRelaxCheckBox") and self.runsRelaxCheckBox is not None:
+            do_relax = bool(self.runsRelaxCheckBox.isChecked())
+    except Exception:
+        do_relax = True
+
+    try:
+        if hasattr(self, "runLigandCheckbox") and self.runLigandCheckbox is not None:
+            do_ligand = bool(self.runLigandCheckbox.isChecked())
+        elif hasattr(self, "runsLigandCheckBox") and self.runsLigandCheckBox is not None:
+            do_ligand = bool(self.runsLigandCheckBox.isChecked())
+    except Exception:
+        do_ligand = True
+
+    skip_rosetta = (not do_relax)
+    skip_rosetta_ligand = (not do_ligand)
 
     # Run your existing AnalysisWorker, but pass the *job folder name* (what post_analysis expects)
     job_folder_name = job_dir.name
-    self.log(f"🧠 RUNS: post-analysis for '{job_folder_name}' (multi_seed={multi})")
+    self.log(
+        f"🧠 RUNS: post-analysis for '{job_folder_name}' "
+        f"(multi_seed={multi}, relax={do_relax}, ligand={do_ligand})"
+    )
 
-    self.analysis_thread = AnalysisWorker(job_folder_name, multi)
+    self.analysis_thread = AnalysisWorker(
+        job_folder_name,
+        multi,
+        skip_rosetta=skip_rosetta,
+        skip_rosetta_ligand=skip_rosetta_ligand,
+    )
     self.analysis_thread.log.connect(self.log)
     self.analysis_thread.done.connect(lambda: self._runs_after_analysis_refresh(job_dir))
     self.analysis_thread.error.connect(
@@ -397,9 +445,9 @@ def _runs_find_relax_dir(self, job_dir: Path) -> Optional[Path]:
     return relax[0] if relax else None
 
 
-def _runs_find_relax_ligand_dir(self, job_dir: Path) -> Optional[Path]:
+def _runs_find_relax_scripts_dir(self, job_dir: Path) -> Optional[Path]:
     relax = sorted(
-        [p for p in job_dir.glob("rosetta_ligand_*") if p.is_dir()],
+        [p for p in job_dir.glob("rosetta_scripts_*") if p.is_dir()],
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -469,7 +517,7 @@ def _runs_find_rosetta_structure(self, job_dir: Path) -> Optional[Path]:
     Best-effort: find the minimized/relaxed structure in the newest rosetta_ligand_* folder.
     Prefers *relax*/*.pdb, then any pdb/cif.
     """
-    rosettaLigand = self._runs_find_relax_ligand_dir(job_dir)
+    rosettaLigand = self._runs_find_relax_scripts_dir(job_dir)
     rosettaRelax = self._runs_find_relax_dir(job_dir)
     if rosettaLigand:
         pdbs = sorted(rosettaLigand.rglob("*.pdb"), key=lambda p: p.stat().st_mtime, reverse=True)

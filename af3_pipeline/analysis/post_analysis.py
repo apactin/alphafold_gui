@@ -23,8 +23,8 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 # Dynamically imported analysis steps
 SUBMODULES = {
     "build_meta":        "af3_pipeline.analysis.build_meta",
-    "rosetta_minimize":  "af3_pipeline.analysis.rosetta_minimize",
-    "rosetta_ligand":    "af3_pipeline.analysis.rosetta_ligand",
+    "rosetta_relax": "af3_pipeline.analysis.rosetta_relax",     
+    "rosetta_scripts": "af3_pipeline.analysis.rosetta_scripts",
     "metrics":           "af3_pipeline.analysis.metrics",
 }
 
@@ -99,26 +99,52 @@ def _ensure_callable(mod, func="run"):
         raise AttributeError(f"Module {mod.__name__} does not define `{func}()`")
     return getattr(mod, func)
 
+def _check_for_custom_constraints():
+    constraints_set  = cfg.get("rosetta.constraints_set", "")
+    constraints_file = cfg.get("rosetta.constraints_file", "")
+    try:
+        if constraints_file:
+            print(f"Found custom constraints: {constraints_file}")
+
+            return constraints_file
+        else:
+            print(f"No custom constraints found.")
+            return
+    except Exception:
+        pass
+
+
 
 # ============================
 # 🧠 Main analysis pipeline
 # ============================
-def run_analysis(job_name: str, model_path: str | Path | None, multi_seed: bool = False, meta: dict | None = None, skip_rosetta: bool = False, ):
+def run_analysis(
+    job_name: str,
+    model_path: str | Path | None,
+    multi_seed: bool = False,
+    meta: dict | None = None,
+    skip_rosetta: bool = False,
+    skip_rosetta_ligand: bool = False,
+    constraints_file: str | None = None,
+):
     base_name, resolved_job_name, job_dir = _resolve_job_dir(job_name)
     bundle_dir = _bundle_dir_for_job(resolved_job_name)
+    cst_path: Path | None = None
 
     try:
         bundle_dir.mkdir(parents=True, exist_ok=True)
         (bundle_dir / "analysis_flags.txt").write_text(
-            f"multi_seed={multi_seed}\nskip_rosetta={skip_rosetta}\n",
+            f"multi_seed={multi_seed}\nskip_rosetta={skip_rosetta}\nskip_rosetta_scripts={skip_rosetta_ligand}",
             encoding="utf-8",
         )
     except Exception:
         pass
-
+    cst_path = _check_for_custom_constraints()
+    print(f"Constraints: {cst_path}")
     print(f"post analysis job dir: {job_dir}")
     job_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Skip Rosetta: {skip_rosetta}")
+    print(f"Skip RosettaRelax: {skip_rosetta}")
+    print(f"Skip RosettaLigand: {skip_rosetta_ligand}")
 
     # Normalize model_path:
     # - None / "" / whitespace => treat as not provided
@@ -151,31 +177,52 @@ def run_analysis(job_name: str, model_path: str | Path | None, multi_seed: bool 
         traceback.print_exc()
         print("⚠️ build_meta failed, continuing …")
 
-    # Step 2 — rosetta_minimize
-    if skip_rosetta:
-        print("⏭️  Skipping Rosetta minimization (--skip_rosetta).")
-    else:
-        try:
-            mod = _safe_import(SUBMODULES["rosetta_minimize"])
-            func = _ensure_callable(mod)
-            print("⚙️ Running Rosetta minimization …")
-            func(job_dir, multi_seed=multi_seed, model_path=mp)
-        except Exception:
-            traceback.print_exc()
-            print("⚠️ rosetta_minimize failed, continuing …")
 
-    # Step 3 — rosetta_ligand
+    # Step 2 — rosetta_relax (formerly rosetta_minimize)
+    ran_relax = False
     if skip_rosetta:
-        print("⏭️  Skipping RosettaLigand validation (--skip_rosetta).")
+        print("⏭️  Skipping RosettaRelax (--skip_rosetta).")
     else:
         try:
-            mod = _safe_import(SUBMODULES["rosetta_ligand"])
+            mod = _safe_import(SUBMODULES["rosetta_relax"])  # update SUBMODULES key
             func = _ensure_callable(mod)
-            print("🧲 Running RosettaLigand validation …")
-            func(job_dir, multi_seed=multi_seed)   # it will read latest_rosetta_relax.json
+            print("⚙️ Running RosettaRelax …")
+            # rosetta_relax signature should match: run(job_dir, multi_seed=..., model_path=...)
+            func(job_dir, multi_seed=multi_seed, model_path=mp)
+            ran_relax = True
         except Exception:
             traceback.print_exc()
-            print("⚠️ rosetta_ligand failed, continuing …")
+            print("⚠️ rosetta_relax failed, continuing …")
+
+    # Step 3 — rosetta_scripts (formerly rosetta_ligand)
+    if skip_rosetta_ligand:
+        print("⏭️  Skipping RosettaScripts (--skip_rosetta_ligand).")
+    else:
+        try:
+            mod = _safe_import(SUBMODULES["rosetta_scripts"])  # update SUBMODULES key
+            func = _ensure_callable(mod)
+            print("🧲 Running RosettaScripts …")
+
+            # Key logic:
+            # - If we ran relax in this run (or skip_rosetta=False), scripts should use latest_rosetta_relax.json
+            # - If skip_rosetta=True, scripts should run AF3-direct
+            #
+            # rosetta_scripts.run(..., skip_rosetta=bool, multi_seed=bool, yaml_path=optional)
+            #
+            # If you have a yaml path in cfg, pass it; otherwise omit.
+            yaml_path = cfg.get("rosetta_dicts_yaml", None)
+
+            func(
+                job_dir,
+                skip_rosetta=bool(skip_rosetta or (not ran_relax)),
+                multi_seed=multi_seed,
+                yaml_path=yaml_path,
+                constraints_file=str(cst_path) if cst_path else None, 
+            )
+
+        except Exception:
+            traceback.print_exc()
+            print("⚠️ rosetta_scripts failed, continuing …")
 
     # Step 4 — metrics
     try:
@@ -204,8 +251,10 @@ if __name__ == "__main__":
     parser.add_argument("--job", required=True, help="Job name (base or timestamped)")
     parser.add_argument("--model", required=False, help="Path to model CIF/PDB (optional)")
     parser.add_argument("--multi_seed", action="store_true", help="Analyze top model per seed")
-    parser.add_argument("--skip_rosetta", action="store_true", help="Skip Rosetta minimize + RosettaLigand steps")
+    parser.add_argument("--skip_rosetta", action="store_true", help="Skip RosettaRelax")
+    parser.add_argument("--skip_rosetta_ligand", action="store_true", help="Skip RosettaLigand")
+    parser.add_argument("--constraints", required=False, help="Path to constraints file (optional)")
     args = parser.parse_args()
 
     # Let run_analysis resolve job_dir and default model correctly.
-    run_analysis(args.job, args.model, args.multi_seed, skip_rosetta=args.skip_rosetta)
+    run_analysis(args.job, args.model, args.multi_seed, skip_rosetta=args.skip_rosetta, skip_rosetta_ligand=args.skip_rosetta_ligand, constraints_file=args.constraints,)

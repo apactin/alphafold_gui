@@ -30,11 +30,14 @@ import subprocess
 import traceback
 import yaml
 import re
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Optional, List
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
+from typing import Any
 
 import config_tab as _config_tab
 import runs_features as _runs_features
@@ -42,8 +45,9 @@ import runs_metrics as _runs_metrics
 import viewers as _viewers
 
 from PyQt6 import uic
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QRect, QRectF, QTimer, QProcess
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QFontMetrics, QWheelEvent, QFont, QIcon
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QRect, QRectF, QTimer, QProcess, QSignalBlocker, QUrl
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QFontMetrics, QWheelEvent, QFont, QIcon, QDesktopServices, QPainter
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -70,7 +74,14 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QMessageBox,
     QSizePolicy,
+    QFileDialog,
+    QDoubleSpinBox, 
+    QSpinBox, 
+    QDialogButtonBox, 
+    QFormLayout,
+    QGridLayout,
 )
+
 
 cfg = None
 json_builder = None
@@ -337,6 +348,335 @@ def _shared_dir(*parts: str) -> Path:
     p = norm_path(p)
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+class CompareStructsThread(QThread):
+    finished_ok = pyqtSignal(dict, str)   # results, out_path
+    finished_err = pyqtSignal(str)
+
+    def __init__(self, pdb1: str, lig1: str, pdb2: str, lig2: str, cutoff: float, out_path: str):
+        super().__init__()
+        self.pdb1 = pdb1
+        self.lig1 = lig1
+        self.pdb2 = pdb2
+        self.lig2 = lig2
+        self.cutoff = cutoff
+        self.out_path = out_path
+
+    def run(self):
+        try:
+            from af3_pipeline.analysis.compare_structs import compare_and_write
+            res = compare_and_write(
+                pdb1=self.pdb1, lig1=self.lig1,
+                pdb2=self.pdb2, lig2=self.lig2,
+                cutoff=float(self.cutoff),
+                out=self.out_path,
+            )
+            self.finished_ok.emit(res, self.out_path)
+        except Exception as e:
+            self.finished_err.emit(f"{type(e).__name__}: {e}")
+
+def _parse_atomref_text(s: str) -> dict:
+    """
+    Parse 'ATOM,RES,CHAIN' into {'atom':..., 'res': int, 'chain':...}
+    """
+    parts = [p.strip() for p in (s or "").split(",")]
+    if len(parts) != 3:
+        raise ValueError("Atom reference must be 'ATOM,RES,CHAIN' (e.g. SG,79,A)")
+    atom, res, chain = parts
+    if not atom or not chain:
+        raise ValueError("Atom and chain are required (e.g. SG,79,A)")
+    if not str(res).lstrip("-").isdigit():
+        raise ValueError("Residue must be an integer (e.g. 79)")
+    return {"atom": atom, "res": int(res), "chain": chain}
+
+class AtomPairDialog(QDialog):
+    def __init__(self, parent=None, *, default_func="HARMONIC", default_x0=1.80, default_sd=0.10):
+        super().__init__(parent)
+        self.setWindowTitle("Add AtomPair constraint")
+        self.setFixedWidth(520)
+
+        self.a = QLineEdit()
+        self.a.setPlaceholderText("ATOM,RES,CHAIN   e.g. SG,79,A")
+        self.b = QLineEdit()
+        self.b.setPlaceholderText("ATOM,RES,CHAIN   e.g. C7,245,B")
+
+        self.func = QComboBox()
+        self.func.addItems(["HARMONIC", "FLAT_HARMONIC", "BOUNDED"])
+        idx = self.func.findText(default_func)
+        if idx >= 0:
+            self.func.setCurrentIndex(idx)
+
+        self.x0 = QDoubleSpinBox()
+        self.x0.setDecimals(4)
+        self.x0.setRange(-999999, 999999)
+        self.x0.setValue(float(default_x0))
+
+        self.sd = QDoubleSpinBox()
+        self.sd.setDecimals(4)
+        self.sd.setRange(0.0001, 999999)
+        self.sd.setValue(float(default_sd))
+
+        form = QFormLayout()
+        form.addRow("a (atom,res,chain)", self.a)
+        form.addRow("b (atom,res,chain)", self.b)
+        form.addRow("func", self.func)
+        form.addRow("x0", self.x0)
+        form.addRow("sd", self.sd)
+
+        self.err = QLabel("")
+        self.err.setStyleSheet("color: #b00020;")
+        self.err.setWordWrap(True)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self._accept)
+        btns.rejected.connect(self.reject)
+
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(self.err)
+        lay.addWidget(btns)
+
+        self._result = None
+
+    def _accept(self):
+        try:
+            item = {
+                "type": "AtomPair",
+                "a": _parse_atomref_text(self.a.text()),
+                "b": _parse_atomref_text(self.b.text()),
+                "func": self.func.currentText().strip(),
+                "x0": float(self.x0.value()),
+                "sd": float(self.sd.value()),
+            }
+            self._result = item
+            self.accept()
+        except Exception as e:
+            self.err.setText(str(e))
+
+    def result_item(self):
+        return self._result
+
+
+class DihedralDialog(QDialog):
+    def __init__(self, parent=None, *, default_func="CIRCULARHARMONIC", default_x0=180.0, default_sd=10.0):
+        super().__init__(parent)
+        self.setWindowTitle("Add Dihedral constraint")
+        self.setFixedWidth(520)
+
+        self.a = QLineEdit(); self.a.setPlaceholderText("ATOM,RES,CHAIN  e.g. CA,93,H")
+        self.b = QLineEdit(); self.b.setPlaceholderText("ATOM,RES,CHAIN  e.g. CB,93,H")
+        self.c = QLineEdit(); self.c.setPlaceholderText("ATOM,RES,CHAIN  e.g. ND1,94,H")
+        self.d = QLineEdit(); self.d.setPlaceholderText("ATOM,RES,CHAIN  e.g. S1,1,L")
+
+        self.func = QComboBox()
+        self.func.addItems(["CIRCULARHARMONIC", "HARMONIC"])
+        idx = self.func.findText(default_func)
+        if idx >= 0:
+            self.func.setCurrentIndex(idx)
+
+        self.x0 = QDoubleSpinBox()
+        self.x0.setDecimals(3)
+        self.x0.setRange(-999999, 999999)
+        self.x0.setValue(float(default_x0))
+
+        self.sd = QDoubleSpinBox()
+        self.sd.setDecimals(3)
+        self.sd.setRange(0.0001, 999999)
+        self.sd.setValue(float(default_sd))
+
+        form = QFormLayout()
+        form.addRow("a (atom,res,chain)", self.a)
+        form.addRow("b (atom,res,chain)", self.b)
+        form.addRow("c (atom,res,chain)", self.c)
+        form.addRow("d (atom,res,chain)", self.d)
+        form.addRow("func", self.func)
+        form.addRow("x0 (deg)", self.x0)
+        form.addRow("sd (deg)", self.sd)
+
+        self.err = QLabel("")
+        self.err.setStyleSheet("color: #b00020;")
+        self.err.setWordWrap(True)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self._accept)
+        btns.rejected.connect(self.reject)
+
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(self.err)
+        lay.addWidget(btns)
+
+        self._result = None
+
+    def _accept(self):
+        try:
+            item = {
+                "type": "Dihedral",
+                "a": _parse_atomref_text(self.a.text()),
+                "b": _parse_atomref_text(self.b.text()),
+                "c": _parse_atomref_text(self.c.text()),
+                "d": _parse_atomref_text(self.d.text()),
+                "func": self.func.currentText().strip(),
+                "x0": float(self.x0.value()),
+                "sd": float(self.sd.value()),
+            }
+            self._result = item
+            self.accept()
+        except Exception as e:
+            self.err.setText(str(e))
+
+    def result_item(self):
+        return self._result
+    
+class AngleDialog(QDialog):
+    def __init__(self, parent=None, *, default_func="HARMONIC", default_x0=109.5, default_sd=5.0):
+        super().__init__(parent)
+        self.setWindowTitle("Add Angle constraint")
+        self.setFixedWidth(520)
+
+        self.a = QLineEdit(); self.a.setPlaceholderText("ATOM,RES,CHAIN  e.g. CB,93,H")
+        self.b = QLineEdit(); self.b.setPlaceholderText("ATOM,RES,CHAIN  e.g. ND1,94,H")
+        self.c = QLineEdit(); self.c.setPlaceholderText("ATOM,RES,CHAIN  e.g. S1,1,L")
+
+        self.func = QComboBox()
+        self.func.addItems(["HARMONIC", "CIRCULARHARMONIC"])
+        idx = self.func.findText(default_func)
+        if idx >= 0:
+            self.func.setCurrentIndex(idx)
+
+        self.x0 = QDoubleSpinBox()
+        self.x0.setDecimals(3)
+        self.x0.setRange(-999999, 999999)
+        self.x0.setValue(float(default_x0))
+
+        self.sd = QDoubleSpinBox()
+        self.sd.setDecimals(3)
+        self.sd.setRange(0.0001, 999999)
+        self.sd.setValue(float(default_sd))
+
+        form = QFormLayout()
+        form.addRow("a (atom,res,chain)", self.a)
+        form.addRow("b (atom,res,chain)", self.b)
+        form.addRow("c (atom,res,chain)", self.c)
+        form.addRow("func", self.func)
+        form.addRow("x0 (deg)", self.x0)
+        form.addRow("sd (deg)", self.sd)
+
+        self.err = QLabel("")
+        self.err.setStyleSheet("color: #b00020;")
+        self.err.setWordWrap(True)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self._accept)
+        btns.rejected.connect(self.reject)
+
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(self.err)
+        lay.addWidget(btns)
+
+        self._result = None
+
+    def _accept(self):
+        try:
+            item = {
+                "type": "Angle",
+                "a": _parse_atomref_text(self.a.text()),
+                "b": _parse_atomref_text(self.b.text()),
+                "c": _parse_atomref_text(self.c.text()),
+                "func": self.func.currentText().strip(),
+                "x0": float(self.x0.value()),
+                "sd": float(self.sd.value()),
+            }
+            self._result = item
+            self.accept()
+        except Exception as e:
+            self.err.setText(str(e))
+
+    def result_item(self):
+        return self._result
+
+
+class CoordinateDialog(QDialog):
+    """
+    Coordinate constraint in your YAML format:
+      {"type":"Coordinate", "atom":{atom,res,chain}, "func":"HARMONIC", "x0":0.0, "sd":1.0}
+
+    NOTE: Your exporter should interpret this as "from-input-pose" coordinate constraints
+    (ref XYZ comes from the input pose). The GUI just captures the target atom + weights.
+    """
+    def __init__(self, parent=None, *, default_func="HARMONIC", default_x0=0.0, default_sd=1.0):
+        super().__init__(parent)
+        self.setWindowTitle("Add Coordinate constraint (from input pose)")
+        self.setFixedWidth(520)
+
+        self.atom = QLineEdit()
+        self.atom.setPlaceholderText("ATOM,RES,CHAIN  e.g. CA,94,H")
+
+        # In Rosetta coordinate constraints, func/x0/sd are still meaningful; your pipeline
+        # may treat x0 as 0.0 for HARMONIC or ignore it depending on implementation.
+        self.func = QComboBox()
+        self.func.addItems(["HARMONIC", "FLAT_HARMONIC"])
+        idx = self.func.findText(default_func)
+        if idx >= 0:
+            self.func.setCurrentIndex(idx)
+
+        self.x0 = QDoubleSpinBox()
+        self.x0.setDecimals(4)
+        self.x0.setRange(-999999, 999999)
+        self.x0.setValue(float(default_x0))
+
+        self.sd = QDoubleSpinBox()
+        self.sd.setDecimals(4)
+        self.sd.setRange(0.0001, 999999)
+        self.sd.setValue(float(default_sd))
+
+        hint = QLabel(
+            "Uses the atom's XYZ from the *input pose* as the reference.\n"
+            "So you only specify the target atom + function parameters."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#666;")
+
+        form = QFormLayout()
+        form.addRow("atom (atom,res,chain)", self.atom)
+        form.addRow("func", self.func)
+        form.addRow("x0", self.x0)
+        form.addRow("sd", self.sd)
+
+        self.err = QLabel("")
+        self.err.setStyleSheet("color: #b00020;")
+        self.err.setWordWrap(True)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self._accept)
+        btns.rejected.connect(self.reject)
+
+        lay = QVBoxLayout(self)
+        lay.addWidget(hint)
+        lay.addLayout(form)
+        lay.addWidget(self.err)
+        lay.addWidget(btns)
+
+        self._result = None
+
+    def _accept(self):
+        try:
+            item = {
+                "type": "Coordinate",
+                "atom": _parse_atomref_text(self.atom.text()),
+                "func": self.func.currentText().strip(),
+                "x0": float(self.x0.value()),
+                "sd": float(self.sd.value()),
+            }
+            self._result = item
+            self.accept()
+        except Exception as e:
+            self.err.setText(str(e))
+
+    def result_item(self):
+        return self._result
+
 
 class WSLProcessTable(QWidget):
     """
@@ -924,11 +1264,20 @@ class AnalysisWorker(QThread):
     done = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self, job_name: str, multi_seed: bool = False, skip_rosetta: bool = False):
+    def __init__(
+        self,
+        job_name: str,
+        multi_seed: bool = False,
+        skip_rosetta: bool = False,
+        skip_rosetta_ligand: bool = False,
+        constraints_file: str = "",
+    ):
         super().__init__()
         self.job_name = job_name
         self.multi_seed = bool(multi_seed)
         self.skip_rosetta = bool(skip_rosetta)
+        self.skip_rosetta_ligand = bool(skip_rosetta_ligand)
+        self.constraints_file = (constraints_file or "").strip()
 
     def run(self):
         try:
@@ -941,6 +1290,10 @@ class AnalysisWorker(QThread):
                 cmd.append("--multi_seed")
             if self.skip_rosetta:
                 cmd.append("--skip_rosetta") 
+            if self.skip_rosetta_ligand:
+                cmd.append("--skip_rosetta_ligand")
+            if self.constraints_file:
+                cmd += ["--constraints", self.constraints_file]
 
             env = os.environ.copy()
             env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
@@ -1575,6 +1928,69 @@ class SequenceMapPanel(QWidget):
 
         self.canvas.setSelection((start_norm, end_norm - start_norm + 1))
 
+def _af3_dir_posix() -> str:
+    # cfg stores af3_dir at top level (see _ensure_profile_first_run template)
+    return str(PurePosixPath((cfg.get("af3_dir") or "").strip()))
+
+def _constraints_root_posix() -> str:
+    """
+    Always derive constraints root as: <af3_dir>/constraints
+    e.g. /home/olive/Repositories/alphafold/constraints
+    """
+    af3 = (cfg.get("af3_dir") or "").strip()
+    if not af3:
+        return ""
+    return str(PurePosixPath(af3) / "constraints")
+
+def _constraints_root_host_path() -> Path:
+    """
+    Host-visible path for the constraints root.
+    - On Windows: \\wsl.localhost\<distro>\<posix_path>
+    - On Linux/macOS: normal POSIX path
+    """
+    posix = _constraints_root_posix().strip()
+    if not posix:
+        return Path()
+
+    if sys.platform.startswith("win"):
+        distro = (cfg.get("wsl_distro") or "Ubuntu-22.04").strip()
+        return Path(rf"\\wsl.localhost\{distro}\{posix.lstrip('/')}")
+    return Path(posix)
+
+def _constraints_root() -> Path | None:
+    posix = _constraints_root_posix().strip()
+    return Path(posix) if posix else None
+
+def _posix_to_wsl_unc(posix_path: str) -> Path:
+    """
+    /home/olive/... -> \\wsl.localhost\\Ubuntu-22.04\\home\\olive\\...
+    """
+    distro = (cfg.get("wsl_distro") or "Ubuntu-22.04").strip()
+    p = str(PurePosixPath(posix_path)).lstrip("/")
+    return Path(rf"\\wsl.localhost\{distro}\{p}")
+
+def _list_constraint_sets() -> list[str]:
+    root = _constraints_root_host_path()
+    if not root.exists():
+        return []
+    files = sorted(root.glob("*_constraints.cst"))
+    return [f.name[:-len("_constraints.cst")] for f in files]
+    return out
+
+def _constraint_set_to_file(set_name: str) -> Optional[Path]:
+    set_name = (set_name or "").strip()
+    if not set_name:
+        return None
+
+    root = _constraints_root_host_path()
+    if not root:
+        return None
+
+    p = root / f"{set_name}_constraints.cst"
+    return p if p.exists() else None
+
+
+
 # ==========================
 # 🪟 Main Window
 # ==========================
@@ -1590,7 +2006,7 @@ class MainWindow(QMainWindow):
         # Load UI first
         ui_path = resource_path("main_window.ui")
         uic.loadUi(str(ui_path), self)
-        self.resize(1500, 1200)
+        self.resize(1500, 1175)
         self.setMinimumSize(900, 600)
 
         # Profiles UI
@@ -1601,6 +2017,7 @@ class MainWindow(QMainWindow):
         self._install_config_help()
 
         self._ensure_profile_first_run()
+        self._install_constraints_dropdown_ui()
 
         self.sequence_cache = _read_json(SEQUENCE_CACHE_FILE, {})
         self.ligand_cache   = _read_json(LIGAND_CACHE_FILE, {})
@@ -1616,11 +2033,13 @@ class MainWindow(QMainWindow):
         self._pending_json_path: str = ""
         self._pending_multi_seed: bool = False
         self._pending_skip_rosetta: bool = False
+        self._pending_skip_rosetta_ligand: bool = False
 
         # ---- wire up ----
         self._connect_nav()
         self._connect_sequences_page()
         self._connect_ligands_page()
+        self._connect_rosetta_config_page()
         self._connect_alphafold_page()
         self._connect_runs_page()
         self._connect_config_page()
@@ -1632,6 +2051,7 @@ class MainWindow(QMainWindow):
         self._refresh_all_dropdowns()
         self._refresh_queue_view()
         self._refresh_runs_view()
+        self._connect_compare_pdbs_ui()
 
         # covalent field enable
         self.covalentCheckbox.toggled.connect(self._update_covalent_fields)
@@ -1848,6 +2268,87 @@ class MainWindow(QMainWindow):
             return
         self._activate_profile(name, run_autodetect_if_needed=False)
 
+    def _clear_rosetta_config_ui(self):
+        """
+        Reset ONLY widgets that still exist in the trimmed .ui.
+        """
+        try:
+            # Stage2 protocol defaults
+            if hasattr(self, "rsNeighborDistSpin"):
+                self.rsNeighborDistSpin.setValue(6.0)
+
+            if hasattr(self, "rsNstructNoncovSpin"):
+                self.rsNstructNoncovSpin.setValue(5)
+            if hasattr(self, "rsNstructCovSpin"):
+                self.rsNstructCovSpin.setValue(1)
+
+            if hasattr(self, "rsLocalRbEnabledCheck"):
+                self.rsLocalRbEnabledCheck.setChecked(True)
+            if hasattr(self, "rsRbTranslateAngSpin"):
+                self.rsRbTranslateAngSpin.setValue(1.5)
+            if hasattr(self, "rsRbTranslateCyclesSpin"):
+                self.rsRbTranslateCyclesSpin.setValue(25)
+            if hasattr(self, "rsRbRotateDegSpin"):
+                self.rsRbRotateDegSpin.setValue(15.0)
+            if hasattr(self, "rsRbRotateCyclesSpin"):
+                self.rsRbRotateCyclesSpin.setValue(50)
+            if hasattr(self, "rsRbSlideTogetherCheck"):
+                self.rsRbSlideTogetherCheck.setChecked(True)
+
+            if hasattr(self, "rsHighresCyclesSpin"):
+                self.rsHighresCyclesSpin.setValue(6)
+            if hasattr(self, "rsHighresRepackSpin"):
+                self.rsHighresRepackSpin.setValue(3)
+
+            # Stage2 scoring/minimization controls
+            if hasattr(self, "rsSfxnSoftInput"):
+                self.rsSfxnSoftInput.setText("ligand_soft_rep")
+            if hasattr(self, "rsSfxnHardInput"):
+                self.rsSfxnHardInput.setText("ligand")
+            if hasattr(self, "rsMinTypeDropdown") and self.rsMinTypeDropdown.count() > 0:
+                self.rsMinTypeDropdown.setCurrentIndex(0)
+            if hasattr(self, "rsPackCyclesSpin"):
+                self.rsPackCyclesSpin.setValue(4)
+            if hasattr(self, "rsRampScorefxnCheck"):
+                self.rsRampScorefxnCheck.setChecked(True)
+
+            # Constraints generator group (genRosettaParamsGroup)
+            if hasattr(self, "grpRefPdbInput"):
+                self.grpRefPdbInput.clear()
+            if hasattr(self, "grpLigandNameInput"):
+                self.grpLigandNameInput.clear()
+            if hasattr(self, "grpRefLigandResnameInput"):
+                self.grpRefLigandResnameInput.setText("LIG")
+            if hasattr(self, "grpChainInput"):
+                self.grpChainInput.setText("")
+            if hasattr(self, "grpResnumSpin"):
+                self.grpResnumSpin.setValue(1)
+            if hasattr(self, "grpRestypeInput"):
+                self.grpRestypeInput.setText("")
+            if hasattr(self, "grpProteinAtomInput"):
+                self.grpProteinAtomInput.clear()
+            if hasattr(self, "grpLigandAtomTrueInput"):
+                self.grpLigandAtomTrueInput.clear()
+            if hasattr(self, "grpSdDistSpin"):
+                self.grpSdDistSpin.setValue(0.5)
+            if hasattr(self, "grpSdAngSpin"):
+                self.grpSdAngSpin.setValue(5.0)
+            if hasattr(self, "grpSdDihSpin"):
+                self.grpSdDihSpin.setValue(10.0)
+            if hasattr(self, "grpOutInput"):
+                self.grpOutInput.clear()
+            if hasattr(self, "grpStatusLabel"):
+                self.grpStatusLabel.setText("Status: idle")
+
+            if hasattr(self, "rosettaDictsStatusLabel"):
+                self.rosettaDictsStatusLabel.setText("Status: idle")
+
+        except Exception as e:
+            try:
+                self.log(f"⚠️ _clear_rosetta_config_ui failed: {e}")
+            except Exception:
+                pass
+
     def _activate_profile(self, name: str, *, run_autodetect_if_needed: bool):
         name = _safe_profile_name(name)
         if not name:
@@ -1885,6 +2386,11 @@ class MainWindow(QMainWindow):
             self.sequence_cache = _read_json(SEQUENCE_CACHE_FILE, {})
             self.ligand_cache   = _read_json(LIGAND_CACHE_FILE, {})
             self.runs_history   = _read_json(RUNS_HISTORY_FILE, [])
+
+            self.rosetta_dicts_data = {}
+            self.rosetta_dicts_path = None
+            self._rs_selected_set_name = ""
+            self._clear_rosetta_config_ui()
 
             self._refresh_all_dropdowns()
             self._refresh_queue_view()
@@ -1924,6 +2430,247 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.log(f"⚠️ Failed to insert WSL proc table: {e}")
             self.sidebarLayout.addWidget(self.wslProcTable)
+
+    def _connect_compare_pdbs_ui(self) -> None:
+        if hasattr(self, "browseRefPDBPathButton"):
+            self.browseRefPDBPathButton.clicked.connect(self._browse_ref_pdb_for_compare)
+        if hasattr(self, "browseQueryPDBPathButton"):
+            self.browseQueryPDBPathButton.clicked.connect(self._browse_query_pdb_for_compare)
+        if hasattr(self, "runComparisonButton"):
+            self.runComparisonButton.clicked.connect(self._run_compare_structs_clicked)
+
+    def _browse_ref_pdb_for_compare(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select reference PDB", "", "PDB files (*.pdb *.ent);;All files (*)"
+        )
+        if path:
+            self.refPDBPath.setText(path)
+
+    def _browse_query_pdb_for_compare(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select query PDB", "", "PDB files (*.pdb *.ent);;All files (*)"
+        )
+        if path:
+            self.queryPDBPath.setText(path)
+
+    def _run_compare_structs_clicked(self):
+        pdb1 = (self.refPDBPath.text() or "").strip()
+        lig1 = (self.refLigName.text() or "").strip()
+        pdb2 = (self.queryPDBPath.text() or "").strip()
+        lig2 = (self.queryLigName.text() or "").strip()
+
+        if not pdb1 or not Path(pdb1).exists():
+            _msg_warn(self, "Missing input", "Reference PDB path is missing or invalid.")
+            return
+        if not pdb2 or not Path(pdb2).exists():
+            _msg_warn(self, "Missing input", "Query PDB path is missing or invalid.")
+            return
+        if not lig1:
+            _msg_warn(self, "Missing input", "Reference ligand name is required (e.g. SF4).")
+            return
+        if not lig2:
+            _msg_warn(self, "Missing input", "Query ligand name is required (e.g. LIG).")
+            return
+
+        out = (self.comparisonOutPath.text() or "").strip()
+        if not out:
+            # default: next to query pdb
+            out = str(Path(pdb2).with_suffix("").as_posix() + "_compare.json")
+            self.comparisonOutPath.setText(out)
+
+        # Optional: you can add a cutoff widget later; for now fixed 5 Å
+        cutoff = 5.0
+
+        self.runComparisonButton.setEnabled(False)
+        self.runDetailsText.append(f"🧪 Running compare_structs:\n  ref={pdb1} ({lig1})\n  query={pdb2} ({lig2})\n  out={out}")
+
+        self._compare_thread = CompareStructsThread(pdb1, lig1, pdb2, lig2, cutoff, out)
+        self._compare_thread.finished_ok.connect(self._on_compare_finished_ok)
+        self._compare_thread.finished_err.connect(self._on_compare_finished_err)
+        self._compare_thread.start()
+
+    def _on_compare_finished_ok(self, res: dict, out_path: str):
+        self.runComparisonButton.setEnabled(True)
+        # Show a short summary in Details
+        try:
+            bc = res.get("best_chain_pair", {})
+            lig = res.get("ligand", {})
+            pocket = res.get("pocket", {})
+            msg = (
+                f"✅ Compare complete\n"
+                f"Best chain pair: pdb1:{bc.get('pdb1_chain')} <-> pdb2:{bc.get('pdb2_chain')}\n"
+                f"Backbone RMSD: {bc.get('final_alignment_rmsd_backbone'):.3f} Å\n"
+                f"Ligand RMSD: {lig.get('rmsd_A')}\n"
+                f"Ligand centroid distance: {lig.get('ligand_centroid_distance')}\n"
+                f"Pocket CA RMSD: {pocket.get('ca_rmsd_A')} (n={pocket.get('mapped_residue_count_used_for_rmsd')})\n"
+                f"Wrote: {out_path}\n"
+            )
+        except Exception:
+            msg = f"✅ Compare complete. Wrote: {out_path}\n"
+        self.runDetailsText.append(msg)
+
+    def _on_compare_finished_err(self, err: str):
+        self.runComparisonButton.setEnabled(True)
+        _msg_err(self, "Compare failed", err)
+        self.runDetailsText.append(f"❌ Compare failed: {err}")
+
+    def _install_constraints_dropdown_ui(self) -> None:
+        """
+        Create a 'Custom constraints set' label + dropdown directly under the
+        covalent constraints generator section within genRosettaParamsGroup.
+        Creates the dropdown widget (constraintsSetNextDropdown) at runtime.
+        """
+
+        group = getattr(self, "genRosettaParamsGroup", None)
+        if group is None:
+            print("WARNING: genRosettaParamsGroup not found; cannot add constraints dropdown.")
+            return
+
+        # Avoid duplicates if called twice
+        if getattr(self, "constraintsSetNextDropdown", None) is not None:
+            return
+
+        lay = group.layout()
+        if lay is None:
+            # genRosettaParamsGroup should already have a layout in the .ui
+            # but if not, create one so we have somewhere to insert widgets.
+            from PyQt6.QtWidgets import QVBoxLayout
+            lay = QVBoxLayout(group)
+            group.setLayout(lay)
+
+        # --- Build row ---
+        row = QHBoxLayout()
+
+        lbl = QLabel("Custom constraints set:")
+        lbl.setObjectName("constraintsSetNextLabel")
+        lbl.setToolTip(
+            "Optional: choose a saved constraints folder.\n"
+            "Auto = use the default covalent constraints generated from the AF model."
+        )
+
+        dd = QComboBox()
+        dd.setObjectName("constraintsSetNextDropdown")
+        dd.setMinimumWidth(280)
+        dd.setToolTip(lbl.toolTip())
+
+        # Store on self so existing code can access it
+        self.constraintsSetNextDropdown = dd
+
+        row.addWidget(lbl)
+        row.addWidget(dd, stretch=1)
+
+        # --- Insert right under the generator section ---
+        #
+        # We need an anchor widget that is part of the generator subsection.
+        # Common patterns: a button like "genRosettaParamsBtn" or an output/path field.
+        #
+        # Try several likely anchor names; we insert *after* the first one we find.
+        anchor_names = [
+            "genRosettaParamsBtn",
+            "genRosettaParamsButton",
+            "genRosettaParamsOut",
+            "genRosettaParamsOutEdit",
+            "genRosettaParamsFolderEdit",
+            "generateRosettaParamsBtn",
+        ]
+
+        inserted = False
+        for nm in anchor_names:
+            anchor = getattr(self, nm, None)
+            if anchor is None:
+                continue
+            idx = lay.indexOf(anchor)
+            if idx >= 0:
+                # insert after anchor
+                lay.insertLayout(idx + 1, row)
+                inserted = True
+                break
+
+        if not inserted:
+            # Fallback: append to end of group
+            lay.addLayout(row)
+
+        self._refresh_constraints_dropdown()
+        dd.currentIndexChanged.connect(self._on_constraints_dropdown_changed_any)
+        self._on_constraints_dropdown_changed_any("constraintsSetNextDropdown")
+        with QSignalBlocker(dd):
+            dd.setCurrentIndex(0)   # Auto row
+        self._on_constraints_dropdown_changed_any("constraintsSetNextDropdown")
+
+    def _refresh_constraints_dropdown(self) -> None:
+        dds = []
+        for nm in ("constraintsSetNextDropdown", "constraintsDropdown", "constraintsDropdown_2"):
+            dd = getattr(self, nm, None)
+            if dd is not None:
+                dds.append(dd)
+        if not dds:
+            return
+
+        sets = _list_constraint_sets()
+        cur = (cfg.get("rosetta.constraints_set") or "").strip()
+
+        for dd in dds:
+            with QSignalBlocker(dd):
+                dd.clear()
+                dd.addItem("Auto (no custom constraints)", "")  # data=""
+                for s in sets:
+                    dd.addItem(s, s)
+
+                # Select current
+                if not cur or cur.lower() == "auto":
+                    dd.setCurrentIndex(0)
+                else:
+                    idx = dd.findData(cur)
+                    dd.setCurrentIndex(idx if idx >= 0 else 0)
+
+    def _on_constraints_dropdown_changed_any(self, *args) -> None:
+        """
+        Universal handler for ALL constraints dropdowns.
+
+        Supported call patterns:
+        - _on_constraints_dropdown_changed_any()                     # default to constraintsSetNextDropdown
+        - _on_constraints_dropdown_changed_any("constraintsDropdown")# explicit widget name
+        - Qt signal: currentIndexChanged(int) -> args=(index,)       # ignore index, use sender()
+        """
+
+        widget_name = None
+
+        # If first arg is a string, treat it as widget_name
+        if args and isinstance(args[0], str):
+            widget_name = args[0]
+
+        # If called from a signal, try sender()
+        dd = None
+        if widget_name:
+            dd = getattr(self, widget_name, None)
+        if dd is None:
+            try:
+                dd = self.sender()
+            except Exception:
+                dd = None
+
+        # Final fallback: use the Rosetta page dropdown if it exists
+        if dd is None:
+            dd = getattr(self, "constraintsSetNextDropdown", None)
+
+        if dd is None:
+            return  # nothing to do
+
+        set_name = (dd.currentData() or "").strip()
+
+        # Normalize: treat "auto" or "" as no custom constraints
+        if not set_name or set_name.lower() == "auto":
+            cfg.set("rosetta.constraints_set", "auto")
+            cfg.set("rosetta.constraints_file", "")
+        else:
+            cfg.set("rosetta.constraints_set", set_name)
+            cst_path = _constraint_set_to_file(set_name)
+            cfg.set("rosetta.constraints_file", str(cst_path) if cst_path else "")
+
+        cfg.save()
+
+        # Keep all dropdowns in sync
+        self._refresh_constraints_dropdown()
 
 
     # =======================
@@ -2200,6 +2947,640 @@ class MainWindow(QMainWindow):
             refs.ptm_summary.setText(self._ptm_summary_text(refs.ptms))
             self.log(f"🧬 PTMs updated: {refs.ptm_summary.text()}")
 
+    def _install_constraints_dropdown_existing(self, widget_name: str) -> None:
+        dd = getattr(self, widget_name, None)
+        if dd is None:
+            return
+
+        # Avoid double-connect
+        key = f"_constraints_dd_hooked_{widget_name}"
+        if getattr(self, key, False):
+            return
+        setattr(self, key, True)
+
+        # Populate + sync
+        self._refresh_constraints_dropdown()
+
+        # When changed, update cfg and sync all dropdowns
+        dd.currentIndexChanged.connect(lambda *_: self._on_constraints_dropdown_changed_any(widget_name))
+
+    def _install_grp_ligand_dropdown(self) -> None:
+        """
+        Replace grpLigandCacheInput (path) with a dropdown selecting a saved ligand
+        from self.ligand_cache (same as Ligands/AlphaFold pages).
+        Creates:
+        - self.grpLigandDropdown (QComboBox)
+        - self.grpLigandKeyLabel (optional small label)
+        """
+
+        # Only install once
+        if hasattr(self, "grpLigandDropdown"):
+            return
+
+        # Must exist in UI
+        if not self._has_grp_widgets():
+            return
+
+        # Anchor: insert next to/under the existing cache input row
+        cache_input = getattr(self, "grpLigandCacheInput", None)
+        cache_browse = getattr(self, "grpLigandCacheBrowseBtn", None)
+        parent = cache_input.parentWidget() if cache_input else None
+        lay = parent.layout() if parent else None
+        if lay is None:
+            # fallback: try group container
+            group = getattr(self, "genRosettaParamsGroup", None)
+            lay = group.layout() if group else None
+        if lay is None:
+            print("WARNING: Could not find layout to insert grpLigandDropdown.")
+            return
+
+        # Hide old widgets (keep them around so nothing else breaks)
+        try:
+            cache_input.setVisible(False)
+        except Exception:
+            pass
+        try:
+            if cache_browse:
+                cache_browse.setVisible(False)
+        except Exception:
+            pass
+
+        # Create row widget (label + combo)
+        roww = QWidget(parent or self)
+        row = QHBoxLayout(roww)
+        row.setContentsMargins(0, 0, 0, 0)
+
+        lbl = QLabel("Ligand (saved):")
+        lbl.setObjectName("grpLigandDropdownLabel")
+        lbl.setToolTip("Choose one of your saved ligands (from the Ligands page).")
+
+        dd = QComboBox()
+        dd.setObjectName("grpLigandDropdown")
+        dd.setMinimumWidth(260)
+        dd.setToolTip(lbl.toolTip())
+
+        row.addWidget(lbl)
+        row.addWidget(dd, stretch=1)
+
+        # Store on self
+        self.grpLigandDropdown = dd
+
+         # Insert/replace where the old cache input was
+        inserted = False
+
+        # ✅ Grid: REPLACE the existing widget in-place (prevents overlap stealing clicks)
+        if isinstance(lay, QGridLayout):
+            try:
+                lay.replaceWidget(cache_input, roww)
+                inserted = True
+            except Exception:
+                inserted = False
+
+        # ✅ Form layout: replace the row cleanly
+        elif isinstance(lay, QFormLayout):
+            try:
+                r = lay.getWidgetPosition(cache_input)[0]
+                # Hide the old form label if present
+                lab = lay.labelForField(cache_input)
+                if lab:
+                    lab.setVisible(False)
+                lay.removeWidget(cache_input)
+                cache_input.setVisible(False)
+                if cache_browse:
+                    cache_browse.setVisible(False)
+                lay.insertRow(r, lbl, dd)
+                inserted = True
+            except Exception:
+                inserted = False
+
+        # ✅ Fallback: linear layouts
+        if not inserted:
+            idx = lay.indexOf(cache_input)
+            if idx >= 0 and hasattr(lay, "insertWidget"):
+                lay.insertWidget(idx, roww)
+                inserted = True
+
+        if not inserted:
+            lay.addWidget(roww)
+
+        # Populate now + whenever dropdown changes
+        self._refresh_grp_ligand_dropdown()
+        dd.currentIndexChanged.connect(self._on_grp_ligand_selected)
+
+    def _refresh_grp_ligand_dropdown(self) -> None:
+        dd = getattr(self, "grpLigandDropdown", None)
+        if dd is None:
+            return
+
+        # self.ligand_cache shape: {name: {"smiles":..., "hash":..., "path":...}, ...}
+        ligs = self.ligand_cache if isinstance(getattr(self, "ligand_cache", {}), dict) else {}
+
+        with QSignalBlocker(dd):
+            dd.clear()
+            dd.addItem("Select…", "")  # data="" means none selected
+
+            for name in sorted(ligs.keys(), key=lambda s: s.lower()):
+                meta = ligs.get(name, {}) if isinstance(ligs.get(name, {}), dict) else {}
+                lig_hash = str(meta.get("hash", "") or "").strip()
+                # store hash as item data; display name as text
+                dd.addItem(name, lig_hash)
+
+            # Try to restore last selection from the generator name field if it matches a ligand
+            cur_name = (self.grpLigandNameInput.text() or "").strip()
+            if cur_name:
+                idx = dd.findText(cur_name)
+                if idx >= 0:
+                    dd.setCurrentIndex(idx)
+
+    def _on_grp_ligand_selected(self) -> None:
+        """
+        Keep grpLigandNameInput synced to the dropdown name (optional).
+        """
+        dd = getattr(self, "grpLigandDropdown", None)
+        if dd is None:
+            return
+
+        name = (dd.currentText() or "").strip()
+        lig_hash = (dd.currentData() or "").strip()
+
+        if not lig_hash:
+            return
+
+        # Helpful: set ligand-name input automatically (used as filename hint, etc.)
+        try:
+            self.grpLigandNameInput.setText(name)
+        except Exception:
+            pass
+
+    def _init_rosetta_config_state(self):
+        """
+        Holds the loaded YAML dict (editable). UI no longer contains:
+        - rosettaDictsPathInput / Browse / Load / Save
+        - covalent_patches table
+        - constraints sets/items tables, raw XML editor, weight controls
+
+        So we only keep an in-memory dict + optional path, and drive the Stage2 widgets.
+        """
+        if not hasattr(self, "rosetta_dicts_data") or not isinstance(getattr(self, "rosetta_dicts_data", None), dict):
+            self.rosetta_dicts_data = {}
+
+        # Optional: if other code sets this, we respect it. Otherwise it may remain None.
+        if not hasattr(self, "rosetta_dicts_path"):
+            self.rosetta_dicts_path = None
+
+        # Make sure Stage2 subtree exists
+        if "rosetta_scripts_stage" not in self.rosetta_dicts_data or not isinstance(self.rosetta_dicts_data.get("rosetta_scripts_stage"), dict):
+            self.rosetta_dicts_data["rosetta_scripts_stage"] = {}
+
+    def _connect_rosetta_config_page(self):
+        # Ensure state exists
+        if not hasattr(self, "rosetta_dicts_data"):
+            self._init_rosetta_config_state()
+
+        # --- Constraints generator group wiring (still exists) ---
+        if getattr(self, "_has_grp_widgets", None) and self._has_grp_widgets():
+            if hasattr(self, "grpRefPdbBrowseBtn"):
+                self.grpRefPdbBrowseBtn.clicked.connect(self._browse_grp_ref_pdb)
+            if hasattr(self, "grpShowCmdBtn"):
+                self.grpShowCmdBtn.clicked.connect(self._grp_show_command)
+            if hasattr(self, "grpRunBtn"):
+                self.grpRunBtn.clicked.connect(self._grp_run_constraints_generator)
+
+            # If you have this helper already, keep using it (it populates grpLigandDropdown)
+            if hasattr(self, "_install_grp_ligand_dropdown"):
+                self._install_grp_ligand_dropdown()
+
+        # --- Optional: Stage2 UI changes update in-memory dict immediately ---
+        # (No YAML save button exists anymore; this just keeps self.rosetta_dicts_data in sync.)
+        def _stage2_changed(*_args):
+            try:
+                if isinstance(self.rosetta_dicts_data, dict):
+                    self.rosetta_dicts_data["rosetta_scripts_stage"] = self._rs_read_stage2_from_ui()
+            except Exception:
+                pass
+
+        for name in [
+            "rsNeighborDistSpin",
+            "rsNstructNoncovSpin",
+            "rsNstructCovSpin",
+            "rsLocalRbEnabledCheck",
+            "rsRbTranslateAngSpin",
+            "rsRbTranslateCyclesSpin",
+            "rsRbRotateDegSpin",
+            "rsRbRotateCyclesSpin",
+            "rsRbSlideTogetherCheck",
+            "rsHighresCyclesSpin",
+            "rsHighresRepackSpin",
+            "rsSfxnSoftInput",
+            "rsSfxnHardInput",
+            "rsMinTypeDropdown",
+            "rsPackCyclesSpin",
+            "rsRampScorefxnCheck",
+        ]:
+            w = getattr(self, name, None)
+            if w is None:
+                continue
+
+            # Connect the most likely signal type
+            if hasattr(w, "valueChanged"):
+                w.valueChanged.connect(_stage2_changed)
+            elif hasattr(w, "toggled"):
+                w.toggled.connect(_stage2_changed)
+            elif hasattr(w, "currentIndexChanged"):
+                w.currentIndexChanged.connect(_stage2_changed)
+            elif hasattr(w, "editingFinished"):
+                w.editingFinished.connect(_stage2_changed)
+        
+    def _load_rosetta_dicts_into_ui(self):
+        """
+        Safe: loads dicts from self.rosetta_dicts_path if it exists,
+        and fills only the widgets that still exist.
+        """
+        try:
+            p = getattr(self, "rosetta_dicts_path", None)
+            if not p:
+                # nothing to load; just fill from current in-memory dict
+                self._rs_fill_stage2_from_yaml()
+                if hasattr(self, "rosettaDictsStatusLabel"):
+                    self.rosettaDictsStatusLabel.setText("Status: loaded (memory)")
+                return
+
+            p = Path(p)
+            if not p.exists():
+                _msg_warn(self, "Not Found", f"rosetta_dicts.yaml not found:\n{p}")
+                return
+
+            from af3_pipeline.rosetta.rosetta_config import load_rosetta_dicts
+            dicts = load_rosetta_dicts(p)
+            self.rosetta_dicts_data = dict(dicts.data or {})
+            self.rosetta_dicts_path = Path(dicts.path)
+
+            self._rs_fill_stage2_from_yaml()
+
+            if hasattr(self, "rosettaDictsStatusLabel"):
+                self.rosettaDictsStatusLabel.setText(f"Status: loaded {self.rosetta_dicts_path}")
+            self.log(f"✅ Loaded rosetta_dicts.yaml → {self.rosetta_dicts_path}")
+
+        except Exception as e:
+            _msg_err(self, "Load failed", f"{type(e).__name__}: {e}")
+
+
+
+    def _rs_get_stage2(self) -> dict:
+        d = self.rosetta_dicts_data.get("rosetta_scripts_stage", {})
+        return d if isinstance(d, dict) else {}
+
+    def _rs_fill_stage2_from_yaml(self):
+        st = self._rs_get_stage2()
+
+        # protocol
+        proto = st.get("protocol", {}) if isinstance(st.get("protocol", {}), dict) else {}
+
+        if hasattr(self, "rsNeighborDistSpin"):
+            self.rsNeighborDistSpin.setValue(float(proto.get("neighbor_dist", 6.0)))
+
+        nstruct = proto.get("nstruct", {}) if isinstance(proto.get("nstruct", {}), dict) else {}
+        if hasattr(self, "rsNstructNoncovSpin"):
+            self.rsNstructNoncovSpin.setValue(int(nstruct.get("noncovalent", 5)))
+        if hasattr(self, "rsNstructCovSpin"):
+            self.rsNstructCovSpin.setValue(int(nstruct.get("covalent", 1)))
+
+        local_rb = proto.get("local_rb", {}) if isinstance(proto.get("local_rb", {}), dict) else {}
+        if hasattr(self, "rsLocalRbEnabledCheck"):
+            self.rsLocalRbEnabledCheck.setChecked(bool(local_rb.get("enabled", True)))
+
+        tr = local_rb.get("translate", {}) if isinstance(local_rb.get("translate", {}), dict) else {}
+        rot = local_rb.get("rotate", {}) if isinstance(local_rb.get("rotate", {}), dict) else {}
+        if hasattr(self, "rsRbTranslateAngSpin"):
+            self.rsRbTranslateAngSpin.setValue(float(tr.get("angstroms", 1.5)))
+        if hasattr(self, "rsRbTranslateCyclesSpin"):
+            self.rsRbTranslateCyclesSpin.setValue(int(tr.get("cycles", 25)))
+        if hasattr(self, "rsRbRotateDegSpin"):
+            self.rsRbRotateDegSpin.setValue(float(rot.get("degrees", 15)))
+        if hasattr(self, "rsRbRotateCyclesSpin"):
+            self.rsRbRotateCyclesSpin.setValue(int(rot.get("cycles", 50)))
+        if hasattr(self, "rsRbSlideTogetherCheck"):
+            self.rsRbSlideTogetherCheck.setChecked(bool(local_rb.get("slide_together", True)))
+
+        highres = proto.get("highres", {}) if isinstance(proto.get("highres", {}), dict) else {}
+        if hasattr(self, "rsHighresCyclesSpin"):
+            self.rsHighresCyclesSpin.setValue(int(highres.get("cycles", 6)))
+        if hasattr(self, "rsHighresRepackSpin"):
+            self.rsHighresRepackSpin.setValue(int(highres.get("repack_every_nth", 3)))
+
+        # scorefunctions
+        sfx = st.get("scorefunctions", {}) if isinstance(st.get("scorefunctions", {}), dict) else {}
+        if hasattr(self, "rsSfxnSoftInput"):
+            self.rsSfxnSoftInput.setText(str(sfx.get("soft", "ligand_soft_rep")))
+        if hasattr(self, "rsSfxnHardInput"):
+            self.rsSfxnHardInput.setText(str(sfx.get("hard", sfx.get("hires", "ligand"))))
+
+        # simple knobs (these are now top-level fields in your trimmed UI)
+        if hasattr(self, "rsMinTypeDropdown"):
+            # try to select by text if present
+            min_type = str(st.get("min_type", "dfpmin")).strip()
+            idx = self.rsMinTypeDropdown.findText(min_type)
+            if idx >= 0:
+                self.rsMinTypeDropdown.setCurrentIndex(idx)
+
+        if hasattr(self, "rsPackCyclesSpin"):
+            self.rsPackCyclesSpin.setValue(int(st.get("pack_cycles", 4)))
+
+        if hasattr(self, "rsRampScorefxnCheck"):
+            self.rsRampScorefxnCheck.setChecked(bool(st.get("ramp_scorefxn", True)))
+
+    def _save_rosetta_dicts_from_ui(self):
+        """
+        Safe: writes stage2 subtree back into self.rosetta_dicts_data.
+        If self.rosetta_dicts_path is set, writes YAML there; otherwise memory-only.
+        """
+        try:
+            y = self.rosetta_dicts_data if isinstance(self.rosetta_dicts_data, dict) else {}
+            self.rosetta_dicts_data = y
+
+            y["rosetta_scripts_stage"] = self._rs_read_stage2_from_ui()
+
+            p = getattr(self, "rosetta_dicts_path", None)
+            if not p:
+                if hasattr(self, "rosettaDictsStatusLabel"):
+                    self.rosettaDictsStatusLabel.setText("Status: saved (memory)")
+                return
+
+            p = Path(p)
+            p.parent.mkdir(parents=True, exist_ok=True)
+
+            try:
+                import yaml  # type: ignore
+                p.write_text(yaml.safe_dump(y, sort_keys=False), encoding="utf-8")
+            except ModuleNotFoundError:
+                from ruamel.yaml import YAML  # type: ignore
+                yy = YAML()
+                yy.default_flow_style = False
+                with p.open("w", encoding="utf-8") as f:
+                    yy.dump(y, f)
+
+            if hasattr(self, "rosettaDictsStatusLabel"):
+                self.rosettaDictsStatusLabel.setText(f"Status: saved {p}")
+            self.log(f"💾 Saved rosetta_dicts.yaml → {p}")
+
+        except Exception as e:
+            _msg_err(self, "Save failed", f"{type(e).__name__}: {e}")
+
+    def _csv_to_list(self, txt: str) -> list[str]:
+        parts = [p.strip() for p in (txt or "").split(",")]
+        return [p for p in parts if p]
+
+    def _rs_read_stage2_from_ui(self) -> dict:
+        """
+        Read ONLY fields present in the trimmed .ui.
+        (No constraints sets, no weights, no raw XML editor, no packing_flags input.)
+        """
+        st: dict[str, Any] = {}
+
+        # protocol
+        proto: dict[str, Any] = {}
+        proto["neighbor_dist"] = float(self.rsNeighborDistSpin.value()) if hasattr(self, "rsNeighborDistSpin") else 6.0
+        proto["nstruct"] = {
+            "noncovalent": int(self.rsNstructNoncovSpin.value()) if hasattr(self, "rsNstructNoncovSpin") else 5,
+            "covalent": int(self.rsNstructCovSpin.value()) if hasattr(self, "rsNstructCovSpin") else 1,
+        }
+
+        local_rb: dict[str, Any] = {
+            "enabled": bool(self.rsLocalRbEnabledCheck.isChecked()) if hasattr(self, "rsLocalRbEnabledCheck") else True,
+            "translate": {
+                "angstroms": float(self.rsRbTranslateAngSpin.value()) if hasattr(self, "rsRbTranslateAngSpin") else 1.5,
+                "cycles": int(self.rsRbTranslateCyclesSpin.value()) if hasattr(self, "rsRbTranslateCyclesSpin") else 25,
+            },
+            "rotate": {
+                "degrees": float(self.rsRbRotateDegSpin.value()) if hasattr(self, "rsRbRotateDegSpin") else 15.0,
+                "cycles": int(self.rsRbRotateCyclesSpin.value()) if hasattr(self, "rsRbRotateCyclesSpin") else 50,
+            },
+            "slide_together": bool(self.rsRbSlideTogetherCheck.isChecked()) if hasattr(self, "rsRbSlideTogetherCheck") else True,
+        }
+        proto["local_rb"] = local_rb
+
+        proto["highres"] = {
+            "cycles": int(self.rsHighresCyclesSpin.value()) if hasattr(self, "rsHighresCyclesSpin") else 6,
+            "repack_every_nth": int(self.rsHighresRepackSpin.value()) if hasattr(self, "rsHighresRepackSpin") else 3,
+        }
+
+        st["protocol"] = proto
+
+        # scorefunctions
+        st["scorefunctions"] = {
+            "soft": (self.rsSfxnSoftInput.text() or "ligand_soft_rep").strip() if hasattr(self, "rsSfxnSoftInput") else "ligand_soft_rep",
+            "hard": (self.rsSfxnHardInput.text() or "ligand").strip() if hasattr(self, "rsSfxnHardInput") else "ligand",
+        }
+
+        # remaining single controls
+        if hasattr(self, "rsMinTypeDropdown"):
+            st["min_type"] = (self.rsMinTypeDropdown.currentText() or "dfpmin").strip()
+        st["pack_cycles"] = int(self.rsPackCyclesSpin.value()) if hasattr(self, "rsPackCyclesSpin") else 4
+        st["ramp_scorefxn"] = bool(self.rsRampScorefxnCheck.isChecked()) if hasattr(self, "rsRampScorefxnCheck") else True
+
+        return st
+
+    def _has_grp_widgets(self) -> bool:
+        """Return True if the covalent constraints generator widgets exist in the loaded .ui."""
+        return all(hasattr(self, n) for n in (
+            "grpRefPdbInput",
+            "grpRefPdbBrowseBtn",
+            "grpLigandDropdown",
+            "grpLigandNameInput",
+            "grpLigandNameInput",
+            "grpRefLigResnameInput",
+            "grpChainInput",
+            "grpResnumSpin",
+            "grpRestypeInput",
+            "grpProteinAtomInput",
+            "grpLigandAtomTrueInput",
+            "grpSdDistSpin",
+            "grpSdAngSpin",
+            "grpSdDihSpin",
+            "grpOutInput",
+            "grpShowCmdBtn",
+            "grpRunBtn",
+            "grpStatusLabel",
+        ))
+
+
+    def _browse_grp_ref_pdb(self):
+        start = (self.grpRefPdbInput.text() or "").strip()
+        start_dir = str(Path(start).expanduser().parent) if start else str(Path.home())
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select reference PDB (protein + ligand)",
+            start_dir,
+            "PDB files (*.pdb *.ent);;All files (*)",
+        )
+        if path:
+            self.grpRefPdbInput.setText(path)
+
+
+    def _resolve_constraints_generator_script(self) -> Path:
+        """
+        Best-effort locate the generator script.
+        Adjust candidates if your file is named differently.
+        """
+        here = Path(__file__).resolve().parent
+        apps = Path(here.resolve().parent)
+        repo = Path(apps.resolve().parent)
+
+        candidates = [
+            repo / "af3_pipeline" / "analysis" / "generate_rosetta_constraints.py",
+        ]
+        for p in candidates:
+            if p.exists():
+                return p
+
+        raise FileNotFoundError(
+            "Could not find covalent constraints generator script.\n"
+            "Tried:\n  " + "\n  ".join(str(p) for p in candidates)
+        )
+
+
+    def _build_grp_constraints_cmd(self) -> list[str]:
+        """
+        Build the exact CLI argv for your argparse main() (no shell).
+        """
+        ref_pdb = (self.grpRefPdbInput.text() or "").strip()
+
+        dd = getattr(self, "grpLigandDropdown", None)
+        lig_key = (dd.currentData() or "").strip() if dd else ""
+
+        lig_name = (self.grpLigandNameInput.text() or "").strip()
+        ref_lig_resname = (self.grpRefLigResnameInput.text() or "").strip()
+
+        chain = (self.grpChainInput.text() or "").strip()
+        resnum = int(self.grpResnumSpin.value())
+        restype = (self.grpRestypeInput.text() or "").strip()
+        prot_atom = (self.grpProteinAtomInput.text() or "").strip()
+        lig_atom_true = (self.grpLigandAtomTrueInput.text() or "").strip()
+
+        # ✅ read out_path from the GUI FIRST
+        out_path = ""
+        try:
+            out_path = (self.grpOutInput.text() or "").strip()
+        except Exception:
+            out_path = ""
+
+        # If user didn't provide an output path, auto-fill one
+        if not out_path and lig_name:
+            root = _constraints_root_posix()
+            if root:
+                out_path = str(PurePosixPath(root) / f"{lig_name}_constraints.cst")
+                try:
+                    self.grpOutInput.setText(out_path)
+                except Exception:
+                    pass
+
+        # Required field checks (keep it strict, matches argparse)
+        missing = []
+        if not ref_pdb: missing.append("--ref-pdb")
+        if not lig_key: missing.append("--ligand-key")
+        if not lig_name: missing.append("--ligand-name")
+        if not chain: missing.append("--chain")
+        if not restype: missing.append("--restype")
+        if not prot_atom: missing.append("--protein-atom")
+        if not lig_atom_true: missing.append("--ligand-atom-true")
+        if missing:
+            raise ValueError("Missing required inputs: " + ", ".join(missing))
+
+        argv = [
+            sys.executable,
+            "-m",
+            "af3_pipeline.analysis.generate_rosetta_constraints",
+        ]
+
+        argv += ["--ref-pdb", ref_pdb]
+        argv += ["--ligand-key", lig_key]
+        argv += ["--ligand-name", lig_name]
+
+        if ref_lig_resname:
+            argv += ["--ref-ligand-resname", ref_lig_resname]
+
+        argv += ["--chain", chain]
+        argv += ["--resnum", str(resnum)]
+        argv += ["--restype", restype]
+        argv += ["--protein-atom", prot_atom]
+        argv += ["--ligand-atom-true", lig_atom_true]
+
+        argv += ["--sd-dist", str(float(self.grpSdDistSpin.value()))]
+        argv += ["--sd-ang", str(float(self.grpSdAngSpin.value()))]
+        argv += ["--sd-dih", str(float(self.grpSdDihSpin.value()))]
+
+        if out_path:
+            argv += ["--out", out_path]
+
+        return argv
+
+
+
+    def _grp_show_command(self):
+        try:
+            argv = self._build_grp_constraints_cmd()
+            # Pretty print: quote args with spaces
+            def q(s: str) -> str:
+                return f'"{s}"' if (" " in s or "\t" in s) else s
+            cmd = " ".join(q(a) for a in argv)
+            self.log("🧾 Covalent constraints command:\n" + cmd)
+            if hasattr(self, "grpStatusLabel"):
+                self.grpStatusLabel.setText("Status: command shown in log")
+        except Exception as e:
+            QMessageBox.warning(self, "Command build failed", str(e))
+
+
+    def _grp_run_constraints_generator(self):
+        try:
+            argv = self._build_grp_constraints_cmd()
+        except Exception as e:
+            QMessageBox.warning(self, "Missing/invalid inputs", str(e))
+            return
+
+        # UI feedback
+        try:
+            self.grpStatusLabel.setText("Status: running…")
+            self.grpRunBtn.setEnabled(False)
+        except Exception:
+            pass
+
+        self.log("▶ Running covalent constraints generator…")
+        self.log(" ".join(argv))
+
+        try:
+            # Run and stream output
+            proc = subprocess.run(argv, capture_output=True, text=True)
+
+            if proc.stdout:
+                self.log(proc.stdout.rstrip())
+            if proc.stderr:
+                # keep stderr visible too
+                self.log(proc.stderr.rstrip())
+
+            if proc.returncode != 0:
+                try:
+                    self.grpStatusLabel.setText(f"Status: failed (code {proc.returncode})")
+                except Exception:
+                    pass
+                QMessageBox.warning(self, "Generator failed", f"Exit code: {proc.returncode}\n\nSee log for details.")
+                return
+
+            try:
+                self.grpStatusLabel.setText("Status: done ✅")
+            except Exception:
+                pass
+
+        except Exception as e:
+            try:
+                self.grpStatusLabel.setText("Status: error")
+            except Exception:
+                pass
+            QMessageBox.critical(self, "Run error", str(e))
+        finally:
+            try:
+                self.grpRunBtn.setEnabled(True)
+            except Exception:
+                pass
 
 
     # =======================
@@ -2255,6 +3636,11 @@ class MainWindow(QMainWindow):
 
         # also refresh dynamic entry dropdown choices
         self._refresh_dynamic_entry_dropdowns()
+
+        try:
+            self._refresh_grp_ligand_dropdown()
+        except Exception:
+            pass
 
     def _refresh_dynamic_entry_dropdowns(self):
         prot_names = self._names_for("protein")
@@ -2616,39 +4002,65 @@ class MainWindow(QMainWindow):
             _msg_err(self, "Error", f"Failed to open PyMOL:\n{e}")
 
     def _update_ligand_preview_from_cache(self, ligand_name: str):
-        """
-        Simple 2D preview hook:
-        - If af3_pipeline.ligand_utils later writes an image (e.g. LIG_2D.png)
-          into the ligand hash folder, we can display it here.
-        """
         entry = self.ligand_cache.get(ligand_name)
         if not isinstance(entry, dict):
             return
 
         lig_hash = entry.get("hash") or cache_utils.compute_hash(entry.get("smiles", ""))
         lig_dir = LIGAND_CACHE / lig_hash
-        img_candidates = [
-            lig_dir / "LIG.svg",
-            lig_dir / "LIG.png",
-        ]
-        img = next((p for p in img_candidates if p.exists()), None)
+
+        svg_path = lig_dir / "LIG.svg"
+        png_path = lig_dir / "LIG.png"  # if you later want to prefer PNG
+
+        # Prefer SVG if present
+        img = svg_path if svg_path.exists() else (png_path if png_path.exists() else None)
+
         if not img:
             self.ligandPreviewLabel.setText("(No 2D preview available yet)")
             self.ligandPreviewLabel.setPixmap(QPixmap())
             return
 
+        # ---- SVG: render at widget pixel resolution (HiDPI-safe) ----
+        if img.suffix.lower() == ".svg":
+            renderer = QSvgRenderer(str(img))
+            if not renderer.isValid():
+                self.ligandPreviewLabel.setText("(Failed to load SVG preview)")
+                self.ligandPreviewLabel.setPixmap(QPixmap())
+                return
+
+            # HiDPI support
+            screen = QApplication.primaryScreen()
+            dpr = screen.devicePixelRatio() if screen else 1.0
+
+            w = max(1, int(self.ligandPreviewLabel.width() * dpr))
+            h = max(1, int(self.ligandPreviewLabel.height() * dpr))
+
+            pm = QPixmap(w, h)
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+
+            painter = QPainter(pm)
+            renderer.render(painter)
+            painter.end()
+
+            self.ligandPreviewLabel.setPixmap(pm)
+            self.ligandPreviewLabel.setText("")
+            return
+
+        # ---- PNG fallback: scale smoothly ----
         pix = QPixmap(str(img))
         if pix.isNull():
             self.ligandPreviewLabel.setText("(Failed to load preview image)")
             self.ligandPreviewLabel.setPixmap(QPixmap())
             return
 
-        self.ligandPreviewLabel.setPixmap(pix.scaled(
-            self.ligandPreviewLabel.width(),
-            self.ligandPreviewLabel.height(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        ))
+        self.ligandPreviewLabel.setPixmap(
+            pix.scaled(
+                self.ligandPreviewLabel.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
         self.ligandPreviewLabel.setText("")
 
     # =======================
@@ -2680,6 +4092,7 @@ class MainWindow(QMainWindow):
 
         # Notes + logs
         self.notesButton.clicked.connect(self._open_notes_dialog)
+        self._install_constraints_dropdown_existing("constraintsDropdown_2")
 
         # If no entries yet, keep placeholder labels until first add
         # (we remove placeholders on first add)
@@ -2927,6 +4340,7 @@ class MainWindow(QMainWindow):
             "ligand": ligand,
             "created_at": _now_iso(),
             "skip_rosetta": bool(self.skipRosettaCheckbox.isChecked()),
+            "skip_rosetta_ligand": bool(self.skipRosettaLigandCheckbox.isChecked()),
             "multi_seed": bool(self.multiSeedCheckbox.isChecked()),
         }
         return spec
@@ -3047,6 +4461,7 @@ class MainWindow(QMainWindow):
         
         self._pending_multi_seed = bool(spec.get("multi_seed", False))
         self._pending_skip_rosetta = bool(spec.get("skip_rosetta", False))
+        self._pending_skip_rosetta_ligand = bool(spec.get("skip_rosetta_ligand", False))
 
         proteins = spec.get("proteins", []) or []
         rna = spec.get("rna", []) or []
@@ -3125,10 +4540,24 @@ class MainWindow(QMainWindow):
 
         multi = bool(self._pending_multi_seed)
         skip = bool(self._pending_skip_rosetta)
+        skip_ligand = bool(self._pending_skip_rosetta_ligand)
 
-        self.log(f"🧠 Post-analysis (always on): skip_rosetta={skip}, multi_seed={multi}")
+        self.log(f"🧠 Post-analysis (always on): skip_rosetta_relax={skip}, skip_rosetta_ligand={skip_ligand} multi_seed={multi}")
 
-        self.analysis_thread = AnalysisWorker(job_folder_name, multi_seed=multi, skip_rosetta=skip)
+        constraints_set = str(cfg.get("rosetta.constraints_set") or "auto").strip().lower()
+        constraints_file = str(cfg.get("rosetta.constraints_file") or "").strip()
+
+        if constraints_set == "auto":
+            constraints_file = None
+        elif not constraints_file:
+            constraints_file = None  # custom selected but no file => treat as auto
+        self.analysis_thread = AnalysisWorker(
+            job_folder_name,
+            multi_seed=multi,
+            skip_rosetta=skip,
+            skip_rosetta_ligand=skip_ligand,
+            constraints_file=constraints_file,
+        )
         self.analysis_thread.log.connect(self.log)
         self.analysis_thread.done.connect(self._on_analysis_done)
         self.analysis_thread.error.connect(self._on_analysis_failed)
@@ -3187,98 +4616,231 @@ class MainWindow(QMainWindow):
     # 🧾 Runs tab
     # =======================
     def _connect_runs_page(self):
-        self._install_runs_history_table()
+        """
+        Runs/Post-analysis page is now Designer-owned.
+        Do NOT dynamically install toolbar/table (runs_features v2 installers).
+        """
 
-        # Selection signal: table drives details; list is fallback
-        if not hasattr(self, "runsHistoryTable"):
+        # Selection drives details
+        if hasattr(self, "runsHistoryTable"):
+            self.runsHistoryTable.itemSelectionChanged.connect(
+                lambda: self._show_selected_run_details(self._runs_selected_row())
+            )
+            hdr = self.runsHistoryTable.horizontalHeader()
+            hdr.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+            hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            self.runsHistoryTable.horizontalHeader().setMinimumSectionSize(80)
+        else:
+            # legacy fallback
             self.runsList.currentRowChanged.connect(self._show_selected_run_details)
 
+        # Toolbar row (Designer)
+        if hasattr(self, "runsRefreshButton"):
+            self.runsRefreshButton.clicked.connect(self._refresh_runs_view)
 
-        # Keep legacy behaviors
-        self.runsLoadToAlphafoldButton.clicked.connect(self._load_selected_run_to_alphafold)
+        if hasattr(self, "runsSearchInput"):
+            self.runsSearchInput.textChanged.connect(lambda *_: self._refresh_runs_view())
 
-        self._install_runs_toolbar_v2()
+        if hasattr(self, "runsOpenJSONButton"):
+            self.runsOpenJSONButton.clicked.connect(self._runs_open_selected_json)
 
-        # New behaviors
-        if hasattr(self, "runsAnalyzeButton"):
-            self.runsAnalyzeButton.clicked.connect(self._runs_run_selected_analysis)
+        if hasattr(self, "runsDeleteHistoryButton"):
+            self.runsDeleteHistoryButton.clicked.connect(self._runs_delete_selected_from_history)
+
+        # Existing action buttons (Designer)
+        if hasattr(self, "runsLoadToAlphafoldButton"):
+            self.runsLoadToAlphafoldButton.clicked.connect(self._load_selected_run_to_alphafold)
+
         if hasattr(self, "runsOpenSelectedButton"):
             self.runsOpenSelectedButton.clicked.connect(self._runs_open_selected_run_folder)
+
         if hasattr(self, "runsOpenMetricsButton"):
             self.runsOpenMetricsButton.clicked.connect(self._runs_open_selected_metrics_csv)
 
+        if hasattr(self, "runsAnalyzeButton"):
+            self.runsAnalyzeButton.clicked.connect(self._runs_run_selected_analysis)
+
+        # Viewer controls (Designer)
+        if hasattr(self, "openAlphafold"):
+            self.openAlphafold.clicked.connect(lambda: self._runs_open_structure(which="af"))
+        if hasattr(self, "openRosetta"):
+            self.openRosetta.clicked.connect(lambda: self._runs_open_structure(which="rosetta"))
+        if hasattr(self, "openBoth"):
+            self.openBoth.clicked.connect(lambda: self._runs_open_structure(which="both"))
+
+        # Constraints dropdown on Runs page (Designer)
+        self._install_constraints_dropdown_existing("constraintsDropdown")
+
+        # Initial populate
+        self._refresh_runs_view()
+
 
     def _record_run_history_from_spec(self, spec: dict[str, Any], *, json_path: str):
-        if not spec:
+        """
+        Record a run-history entry.
+
+        IMPORTANT:
+        - We prefer reading the spec back from json_path (per-run file) because any in-memory
+        spec you pass may be a shared/mutated object (e.g., UI state updated for the next job).
+        - We deep-copy the dict so nested lists/dicts can't be mutated later and "rewrite history".
+        """
+        if not json_path:
             return
-        rec = dict(spec)
+
+        # Try to read the on-disk spec for THIS run
+        disk_spec = _read_json(json_path, None)
+        if isinstance(disk_spec, dict) and disk_spec:
+            src = disk_spec
+        else:
+            # Fallback: use provided spec (but still deepcopy)
+            src = spec if isinstance(spec, dict) else {}
+            if not src:
+                return
+
+        rec = copy.deepcopy(src)
+
         rec["json_path"] = json_path
-        rec["finished_at"] = _now_iso()
+
+        # Use created_at for when we recorded it (or queued it); finished_at is misleading here.
+        # Keep finished_at if you already rely on it in the UI.
+        now = _now_iso()
+        rec.setdefault("created_at", now)
+        rec["finished_at"] = now
+
+        # Ensure jobname is stable even if spec doesn't contain it.
+        # If fold_input.json lives at .../<jobfolder>/input/fold_input.json, take <jobfolder>.
+        try:
+            p = Path(json_path)
+            # parent: input ; parent.parent: <jobfolder>
+            job_folder = p.parent.parent.name if p.parent and p.parent.parent else ""
+        except Exception:
+            job_folder = ""
+
+        rec["jobname"] = (rec.get("jobname") or job_folder or "(unnamed)").strip()
+
+        # Optional: stamp a unique id so selection survives renames
+        rec.setdefault("run_id", rec["jobname"])
+
         self.runs_history.insert(0, rec)
         _write_json(RUNS_HISTORY_FILE, self.runs_history)
 
     def _refresh_runs_view(self):
-        self.runs_history = _read_json(RUNS_HISTORY_FILE, [])
-        if not isinstance(self.runs_history, list):
+        data = _read_json(RUNS_HISTORY_FILE, [])
+
+        # Compatibility: dict => [dict]
+        if isinstance(data, dict):
+            self.runs_history = [data]
+        elif isinstance(data, list):
+            self.runs_history = data
+        else:
             self.runs_history = []
 
-        # Prefer table UI
+        # Search filter (Designer)
+        q = ""
+        if hasattr(self, "runsSearchInput"):
+            q = (self.runsSearchInput.text() or "").strip().lower()
+
+        runs = [r for r in self.runs_history if isinstance(r, dict)]
+        if q:
+            runs = [r for r in runs if q in (r.get("jobname") or "").lower()]
+
+        # Store filtered view so selection index maps correctly
+        self._runs_filtered = runs
+
+        # Prefer table
         if hasattr(self, "runsHistoryTable"):
             t = self.runsHistoryTable
-
-            # Prevent selection-change spam while rebuilding
             was = t.blockSignals(True)
             try:
-                t.setRowCount(len(self.runs_history))
+                t.setRowCount(len(runs))
+                t.setColumnCount(5)
+                t.setHorizontalHeaderLabels(["Job", "Finished", "Seed", "Relax", "Ligand"])
+                t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+                t.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+                t.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+                t.verticalHeader().setVisible(False)
 
-                for r, rec in enumerate(self.runs_history):
-                    if not isinstance(rec, dict):
-                        rec = {}
+                hdr = t.horizontalHeader()
+                hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+                hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+                hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+                hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+                hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
 
-                    name = (rec.get("jobname") or "(unnamed)").strip()
+                for r, rec in enumerate(runs):
+                    job = (rec.get("jobname") or "(unnamed)").strip()
                     ts = rec.get("finished_at") or rec.get("created_at") or ""
                     ts_pretty = self._format_run_timestamp_for_list(ts)
-                    # You said you want to remove status column — if you did, just omit col 2
-                    status = str(rec.get("status") or rec.get("state") or "—")
 
-                    t.setItem(r, 0, QTableWidgetItem(name))
+                    multi = "yes" if bool(rec.get("multi_seed", False)) else "no"
+                    relax = "no" if bool(rec.get("skip_rosetta", False)) else "yes"
+                    ligand = "no" if bool(rec.get("skip_rosetta_ligand", False)) else "yes"
+
+                    t.setItem(r, 0, QTableWidgetItem(job))
                     t.setItem(r, 1, QTableWidgetItem(ts_pretty))
-                    if t.columnCount() >= 3:
-                        t.setItem(r, 2, QTableWidgetItem(status))
+                    t.setItem(r, 2, QTableWidgetItem(multi))
+                    t.setItem(r, 3, QTableWidgetItem(relax))
+                    t.setItem(r, 4, QTableWidgetItem(ligand))
             finally:
                 t.blockSignals(was)
 
-            if len(self.runs_history) == 0:
-                self.runDetailsText.setPlainText("No runs found yet.")
+            t = self.runsHistoryTable
+            hdr = t.horizontalHeader()
+
+            # Stop Qt from using weird leftover sizes
+            hdr.setStretchLastSection(False)
+
+            # First: size everything to header + contents
+            t.resizeColumnsToContents()
+
+            # Then: enforce minimum widths so header labels are readable
+            # (tweak numbers if you want)
+            min_widths = {
+                0: 220,  # Job
+                1: 140,  # Finished
+                2: 80,   # Seed
+                3: 80,   # Relax
+                4: 90,   # Ligand
+            }
+            for col, w in min_widths.items():
+                t.setColumnWidth(col, max(t.columnWidth(col), w))
+
+            # Finally: let Job take remaining space, BUT only after others are readable
+            hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+            hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+            hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+            hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+            hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+
+            if len(runs) == 0:
+                if hasattr(self, "runDetailsText"):
+                    self.runDetailsText.setPlainText("No runs found yet.")
                 return
 
-            # Auto-select first row, then force-render once after Qt updates selection
             self._runs_set_selected_row(0)
             QTimer.singleShot(0, lambda: self._show_selected_run_details(0))
+            return
 
-        else:
-            # Fallback to old list
-            lst = self.runsList
+        # Fallback list (old UI)
+        lst = self.runsList
+        was = lst.blockSignals(True)
+        try:
+            lst.clear()
+            for rec in runs:
+                job = (rec.get("jobname") or "(unnamed)").strip()
+                ts = rec.get("finished_at") or rec.get("created_at") or ""
+                ts_pretty = self._format_run_timestamp_for_list(ts)
+                lst.addItem(f"{job}    {ts_pretty}")
+        finally:
+            lst.blockSignals(was)
 
-            was = lst.blockSignals(True)
-            try:
-                lst.clear()
-                for rec in self.runs_history:
-                    name = (rec.get("jobname") or "(unnamed)").strip() if isinstance(rec, dict) else "(unnamed)"
-                    ts = (rec.get("finished_at") or rec.get("created_at") or "") if isinstance(rec, dict) else ""
-                    ts_pretty = self._format_run_timestamp_for_list(ts)
-                    lst.addItem(f"{name}    {ts_pretty}")
-            finally:
-                lst.blockSignals(was)
+        if lst.count() == 0:
+            self.runDetailsText.setPlainText("No runs found yet.")
+            return
 
-            if lst.count() == 0:
-                self.runDetailsText.setPlainText("No runs found yet.")
-                return
-
-            # Ensure a current row exists, then force-render once
-            if lst.currentRow() < 0:
-                lst.setCurrentRow(0)
-            QTimer.singleShot(0, lambda: self._show_selected_run_details(lst.currentRow()))
+        if lst.currentRow() < 0:
+            lst.setCurrentRow(0)
+        QTimer.singleShot(0, lambda: self._show_selected_run_details(lst.currentRow()))
 
     def _jobs_root_dir(self) -> Path:
         # Match runner._user_jobs_root() default
@@ -3299,17 +4861,22 @@ class MainWindow(QMainWindow):
 
     def _runs_after_analysis_refresh(self, job_dir: Path):
         self.log("✅ RUNS: analysis complete. Refreshing metrics display…")
-        # refresh details panel (will append metrics if present)
-        row = self.runsList.currentRow()
+        row = self._runs_selected_row()
         self._show_selected_run_details(row)
 
     def _selected_run_record(self) -> Optional[dict[str, Any]]:
         row = self._runs_selected_row()
         if row < 0:
             return None
-        if row >= len(self.runs_history):
+
+        runs = getattr(self, "_runs_filtered", None)
+        if not isinstance(runs, list):
+            runs = self.runs_history if isinstance(self.runs_history, list) else []
+
+        if row >= len(runs):
             return None
-        rec = self.runs_history[row]
+
+        rec = runs[row]
         return rec if isinstance(rec, dict) else None
 
     def _show_selected_run_details(self, row: int):
@@ -3459,6 +5026,49 @@ class MainWindow(QMainWindow):
 
         self.runDetailsText.setPlainText("\n".join(out))
 
+    def _runs_open_selected_json(self):
+        rec = self._selected_run_record()
+        if not rec:
+            _msg_warn(self, "No selection", "Select a run first.")
+            return
+
+        jp = (rec.get("json_path") or "").strip()
+        if not jp:
+            _msg_warn(self, "Not found", "This run has no json_path recorded in runs_history.json.")
+            return
+
+        p = Path(jp)
+        if not p.exists():
+            _msg_warn(self, "Not found", f"JSON file not found:\n{p}")
+            return
+
+        # Open in file manager (and user can double click to open)
+        self._open_path_in_file_manager(p.parent)
+
+    def _runs_delete_selected_from_history(self):
+        row = self._runs_selected_row()
+        runs = getattr(self, "_runs_filtered", None)
+        if not isinstance(runs, list) or row < 0 or row >= len(runs):
+            _msg_warn(self, "No selection", "Select a run first.")
+            return
+
+        rec = runs[row]
+        # Remove this exact dict from full history (by identity-ish matching)
+        full = self.runs_history if isinstance(self.runs_history, list) else []
+        try:
+            full.remove(rec)
+        except ValueError:
+            # fallback: match by jobname+finished_at
+            j = rec.get("jobname")
+            t = rec.get("finished_at") or rec.get("created_at")
+            full = [
+                r for r in full
+                if not (isinstance(r, dict) and (r.get("jobname") == j) and ((r.get("finished_at") or r.get("created_at")) == t))
+            ]
+
+        _write_json(RUNS_HISTORY_FILE, full)
+        self._refresh_runs_view()
+
     def _set_protein_atom_combo_from_prot_atom(self, prot_atom: str) -> None:
         """
         Restore proteinAtomComboBox from a stored prot_atom value (e.g. 'SG', 'NZ', ...).
@@ -3508,8 +5118,8 @@ class MainWindow(QMainWindow):
             return
 
         # switch to alphafold page
-        self.pagesStack.setCurrentIndex(3)
-        self.navList.setCurrentRow(3)
+        self.pagesStack.setCurrentIndex(4)
+        self.navList.setCurrentRow(4)
 
         # jobname
         self.jobNameInput.setText(rec.get("jobname", ""))
@@ -3782,7 +5392,7 @@ MainWindow._runs_run_selected_analysis = _runs_features._runs_run_selected_analy
 
 MainWindow._guess_selected_job_folder = _runs_features._guess_selected_job_folder
 MainWindow._runs_find_relax_dir = _runs_features._runs_find_relax_dir
-MainWindow._runs_find_relax_ligand_dir = _runs_features._runs_find_relax_ligand_dir
+MainWindow._runs_find_relax_scripts_dir = _runs_features._runs_find_relax_scripts_dir
 MainWindow._runs_find_metrics_csv = _runs_features._runs_find_metrics_csv
 MainWindow._runs_find_af_structure = _runs_features._runs_find_af_structure
 MainWindow._runs_find_rosetta_structure = _runs_features._runs_find_rosetta_structure

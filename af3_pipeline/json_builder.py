@@ -120,6 +120,52 @@ def _build_modifications(mod_type_ccd: str, pos: str, mode: str = "protein"):
         return [{"ptmType": mod_type_ccd, "ptmPosition": pos_int}]
     else:
         return [{"modificationType": mod_type_ccd, "basePosition": pos_int}]
+    
+def _build_protein_ptms(p: dict) -> list[dict]:
+    """
+    Returns AF3 'modifications' array for proteins.
+
+    Supports:
+      - New: p["ptms"] = [{"ptmType": "SEP", "ptmPosition": 12}, ...]
+        OR common UI variants like {"type": "...", "pos": ...}
+      - Legacy: p["modification"], p["mod_position"]
+    """
+    out: list[dict] = []
+
+    # --- New-style list
+    ptms = p.get("ptms", None)
+    if isinstance(ptms, list):
+        for item in ptms:
+            if not isinstance(item, dict):
+                continue
+
+            # accept either canonical keys or common aliases
+            ptm_type = (item.get("ptmType") or item.get("type") or item.get("modification") or "").strip()
+            pos = item.get("ptmPosition", None)
+            if pos is None:
+                pos = item.get("pos", None) or item.get("position", None) or item.get("mod_position", None)
+
+            if not ptm_type:
+                continue
+            try:
+                pos_int = int(pos)
+            except Exception:
+                continue
+
+            out.append({"ptmType": ptm_type, "ptmPosition": pos_int})
+
+    # --- Legacy fallback (only if no new PTMs provided)
+    if not out:
+        legacy_type = (p.get("modification", "") or "").strip()
+        legacy_pos  = (p.get("mod_position", "") or "").strip()
+        if legacy_type and legacy_type.lower() != "none" and legacy_pos:
+            try:
+                out.append({"ptmType": legacy_type, "ptmPosition": int(legacy_pos)})
+            except Exception:
+                pass
+
+    return out
+
 
 
 def _wsl_paths_from_cfg():
@@ -215,9 +261,7 @@ def build_input(jobname, proteins, rna, dna, ligand):
                 "id": pid,
                 "sequence": seq,
                 "description": p.get("name") or f"Protein_{pid}",
-                "modifications": _build_modifications(
-                    p.get("modification", ""), p.get("mod_position", ""), "protein"
-                ),
+                "modifications": _build_protein_ptms(p),
                 "unpairedMsa": msa_str,
                 "pairedMsa": "",
             }

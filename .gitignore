@@ -50,3 +50,6 @@ config.yaml
 cache/
 .cache/
 *_cache/
+AlphaFoldGUI.spec
+first_time_setup.txt
+server_guide.txt

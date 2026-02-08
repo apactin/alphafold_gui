@@ -1,0 +1,363 @@
+# rosetta_dicts.yaml
+# Central config/dicts for Rosetta relax + RosettaScripts ligand refinement.
+# Intended to be loaded by:
+#   - rosetta_relax.py   (formerly rosetta_minimize.py)
+#   - rosetta_scripts.py (formerly rosetta_ligand.py)
+#   - prep_lig_for_rosetta.py
+#
+# Notes:
+# - Paths that live under the Rosetta DB are stored as *relative* paths under db_root.
+#   The Python code should join these to ROSETTA_DB at runtime.
+# - Atom names are PDB atom-name tokens (e.g., NZ, SG, C7).
+# - "KEEP" means: do not rename residue type for relax input; only delete atom if requested.
+
+version: 1
+
+# -------------------------------------------------------------------
+# Ligand naming and defaults
+# -------------------------------------------------------------------
+ligand:
+  resname: LIG
+  prefer_resnames: ["LIG"]
+  skip_resnames: ["HOH", "WAT"]
+
+  # Default ligand reactive atom if metadata doesn't provide one
+  default_reactive_atom: C7
+
+  # RDKit conformer generation for SDF
+  rdkit_sdf:
+    num_confs: 20
+    random_seed: 42
+    embed_method: ETKDGv3
+    mmff_optimize: true
+    kekulize_clear_aromatic_flags: true
+
+  # OpenBabel optional artifact generation (SDF -> MOL2)
+  openbabel:
+    enabled: true
+    sdf_to_mol2: true
+
+  # Rosetta molfile_to_params.py settings
+  molfile_to_params:
+    residue_name: LIG
+    prefix: LIG
+    conformers_in_one_file: true
+
+
+# -------------------------------------------------------------------
+# Residue alias rules for post-relax restored PDB
+# (Used when you restore a deleted atom and want Rosetta to recognize
+#  the resulting residue name in downstream runs.)
+# -------------------------------------------------------------------
+resname_alias_rules:
+  # Original residue name -> alias3 + source params under Rosetta DB
+  # Code should:
+  #   - create alias params in a local folder (e.g., prep_dir/params_alias)
+  #   - rewrite NAME / IO_STRING / (optional) AA / ROTAMER_AA tokens
+  #   - write alias3 into the restored PDB residue name field
+  LYS:
+    alias3: LYD
+    src_rel: chemical/residue_type_sets/fa_standard/residue_types/alphafold_gui/LYD.params
+
+
+# -------------------------------------------------------------------
+# Covalent patch registry for relax-input editing + restore metadata
+# Keyed by the protein reactive atom name.
+# -------------------------------------------------------------------
+covalent_patches:
+
+  # Lysine reactive nitrogen — custom residue LYX (LYS minus NZ)
+  NZ:
+    deleted_atom: NZ
+    anchor_atom: CE
+    temp_resname: LYX
+    temp_by_resname: {}
+    element: N
+    extra_res_fa:
+      # stored relative to Rosetta DB
+      db_rel: chemical/residue_type_sets/fa_standard/residue_types/alphafold_gui/LYX.params
+
+  # Cysteine thiol — simplify to alanine for relax input (delete SG)
+  SG:
+    deleted_atom: SG
+    anchor_atom: CB
+    temp_resname: ALA
+    temp_by_resname: {}
+    element: S
+    extra_res_fa: null
+
+  # Tyrosine phenolic oxygen — mutate to PHE for relax input (delete OH)
+  OH:
+    deleted_atom: OH
+    anchor_atom: CZ
+    temp_resname: PHE
+    temp_by_resname: {}
+    element: O
+    extra_res_fa: null
+
+  # Histidine ND1 — keep residue type; delete ND1 only
+  ND1:
+    deleted_atom: ND1
+    anchor_atom: CG
+    temp_resname: KEEP
+    temp_by_resname:
+      HIS: KEEP
+      HID: KEEP
+      HIE: KEEP
+      HIP: KEEP
+    element: N
+    extra_res_fa: null
+
+  # NE1 — ambiguous across TRP/HIS naming conventions; keep residue type
+  NE1:
+    deleted_atom: NE1
+    anchor_atom: CD2
+    temp_resname: KEEP
+    temp_by_resname:
+      TRP: KEEP
+      HIS: KEEP
+      HID: KEEP
+      HIE: KEEP
+      HIP: KEEP
+    element: N
+    extra_res_fa: null
+
+  # Serine OG — keep residue type
+  OG:
+    deleted_atom: OG
+    anchor_atom: CB
+    temp_resname: KEEP
+    temp_by_resname:
+      SER: KEEP
+    element: O
+    extra_res_fa: null
+
+  # Threonine OG1 — keep residue type
+  OG1:
+    deleted_atom: OG1
+    anchor_atom: CB
+    temp_resname: KEEP
+    temp_by_resname:
+      THR: KEEP
+    element: O
+    extra_res_fa: null
+
+  # Aspartate OD1/OD2 — keep residue type
+  OD1:
+    deleted_atom: OD1
+    anchor_atom: CG
+    temp_resname: KEEP
+    temp_by_resname:
+      ASP: KEEP
+    element: O
+    extra_res_fa: null
+
+  OD2:
+    deleted_atom: OD2
+    anchor_atom: CG
+    temp_resname: KEEP
+    temp_by_resname:
+      ASP: KEEP
+    element: O
+    extra_res_fa: null
+
+  # Glutamate OE1/OE2 — keep residue type
+  OE1:
+    deleted_atom: OE1
+    anchor_atom: CD
+    temp_resname: KEEP
+    temp_by_resname:
+      GLU: KEEP
+    element: O
+    extra_res_fa: null
+
+  OE2:
+    deleted_atom: OE2
+    anchor_atom: CD
+    temp_resname: KEEP
+    temp_by_resname:
+      GLU: KEEP
+    element: O
+    extra_res_fa: null
+
+  # Methionine SD — keep residue type
+  SD:
+    deleted_atom: SD
+    anchor_atom: CG
+    temp_resname: KEEP
+    temp_by_resname:
+      MET: KEEP
+    element: S
+    extra_res_fa: null
+
+
+# -------------------------------------------------------------------
+# Stage 1: Rosetta relax (cartesian) defaults (rosetta_relax.py)
+# -------------------------------------------------------------------
+relax_stage:
+  binary: relax.static.linuxgccrelease
+  score_weights: ref2015_cart
+
+  flags:
+    relax_cartesian: true
+    ramp_constraints: false
+    nstruct: 1
+    overwrite: true
+
+  # When restoring deleted atoms, anchor fallback order after patch anchor_atom
+  restore_anchor_fallback: ["CB", "CA", "C", "N"]
+
+  # Output conventions
+  filenames:
+    input_pdb: model.pdb
+    cleaned_pdb: model.pdb_00.pdb
+    relax_input_pdb: model.pdb_00_relax_input.pdb
+    restored_pdb: model_relaxed_restored.pdb
+    scorefile: score.sc
+    outputs_json: rosetta_relax_outputs.json
+    latest_pointer_json: latest_rosetta_relax.json
+
+  # If you later add constraint support to Stage 1 (Option A),
+  # you can toggle it on here and share the same constraint weights.
+  covalent_constraints:
+    enabled: false
+    dist: 1.80
+    sd: 0.10
+    # If enabled, stage-1 code should generate constraints.cst and add it
+    # via the appropriate relax/RosettaScripts mechanism.
+    filename: constraints.cst
+
+
+# -------------------------------------------------------------------
+# Stage 2: RosettaScripts ligand refinement defaults (rosetta_scripts.py)
+# -------------------------------------------------------------------
+rosetta_scripts_stage:
+  binary: rosetta_scripts.static.linuxgccrelease
+  db: main/database
+
+  protocol:
+    neighbor_dist: 6.0
+    nstruct:
+      noncovalent: 5
+      covalent: 1
+
+    local_rb:
+      enabled: true
+      translate: { angstroms: 1.5, cycles: 25, distribution: gaussian }
+      rotate:    { degrees: 15,   cycles: 50, distribution: gaussian }
+      slide_together: true
+
+    highres:
+      cycles: 6
+      repack_every_nth: 3
+
+    ligand_area:
+      covalent:
+        high_res_angstroms: 0.20
+        high_res_degrees: 5
+        tether_ligand: 1.0
+        minimize_ligand: 2.0
+      noncovalent:
+        high_res_angstroms: 0.50
+        high_res_degrees: 10
+        tether_ligand: 0.0
+        minimize_ligand: 5.0
+
+  scorefunctions:
+    soft: ligand_soft_rep
+    hires: ligand
+    hires_cst:
+      base: ligand
+      reweights:
+        atom_pair_constraint: 25.0
+        angle_constraint: 5.0
+        dihedral_constraint: 1.0
+        coordinate_constraint: 1.0
+
+  packing_flags: "-ex1 -ex2 -ex2aro -use_input_sc -flip_HNQ"
+
+  constraints:
+    # master toggle
+    enabled: true
+    auto_from_covalent: true
+    defaults:
+      covalent_atom_pair:
+        dist: 1.30
+        sd: 0.10
+        atom_pair:  { func: HARMONIC, sd: 0.10 }
+        angle:      { func: HARMONIC, sd: 10.0 }
+        dihedral:   { func: CIRCULARHARMONIC, sd: 10.0 }
+        coordinate: { func: HARMONIC, sd: 1.0 }
+
+    # where to write generated constraints for a run
+    filename: constraints.cst
+
+    # pick one (or multiple) sets
+    active_sets:
+      covalent:   ["covalent_bond", "covalent_geometry"]
+      noncovalent: ["pose_tethers"]
+
+    # optional: stage-specific overrides
+    stages:
+      stage2:
+        enabled: true
+        extra_sets:
+          covalent: []
+          noncovalent: []
+      stage3:
+        enabled: true
+
+    # scorefunction weights for each mode/stage (you can map these into hires_cst)
+    weights:
+      covalent:
+        atom_pair_constraint: 25.0
+        angle_constraint: 5.0
+        dihedral_constraint: 1.0
+        coordinate_constraint: 0.5
+      noncovalent:
+        atom_pair_constraint: 10.0
+        angle_constraint: 2.0
+        dihedral_constraint: 0.5
+        coordinate_constraint: 0.2
+
+    # GUI-friendly structured sets
+    active_sets:
+    covalent: []          # ✅ default: no prefilled covalent sets
+    noncovalent: ["pose_tethers"]
+
+  sets:
+    covalent_bond:
+      description: "Primary covalent bond distance constraint"
+      enabled: false      # ✅ default off
+      items: []           # ✅ not populated
+
+    covalent_geometry:
+      description: "Angles/dihedrals around the covalent linkage"
+      enabled: false      # ✅ default off
+      items: []           # ✅ not populated
+
+    pose_tethers:
+      description: "Keep ligand near AF3 pose in noncovalent runs"
+      enabled: true
+      items:
+        - type: Coordinate
+          atom: { atom: C1, res: 245, chain: X }
+          ref:  { atom: C1, res: 245, chain: X }
+          func: HARMONIC
+          x0: 0.0
+          sd: 1.0
+
+    # Power-user escape hatch: raw Rosetta constraint lines
+    raw:
+      enabled: false
+      lines: []
+
+
+  # Output conventions
+  filenames:
+    xml: rosetta_ligand.xml
+    scorefile: score.sc
+    log: rosetta_scripts.log
+    outputs_json: rosetta_ligand_outputs.json
+    latest_pointer_json: latest_rosetta_ligand.json
+    multi_index_json: rosetta_ligand_multi_index.json
